@@ -7,13 +7,12 @@ declare const firebase: any;
 // Your web app's Firebase configuration.
 // IMPORTANT: Replace the placeholder values with your actual Firebase project settings.
 const firebaseConfig = {
-  apiKey: "AIzaSyAGcCnAu3h0XHPQ-l4j7k1BZ9WoeL1RTqU",
-  authDomain: "quick-calendar-4d270.firebaseapp.com",
-  projectId: "quick-calendar-4d270",
-  storageBucket: "quick-calendar-4d270.firebasestorage.app",
-  messagingSenderId: "937639505647",
-  appId: "1:937639505647:web:37d8bdb48df93f6379f51a",
-  measurementId: "G-462BLX9PY5"
+  apiKey: "AIzaSyAMnMroWsCKPquFMEKTA_rq2LDyISSuVhs",
+  authDomain: "slot-grid.firebaseapp.com",
+  projectId: "slot-grid",
+  storageBucket: "slot-grid.firebasestorage.app",
+  messagingSenderId: "521092974332",
+  appId: "1:521092974332:web:934fc2ceb87e0b55abb979"
 };
 
 let app;
