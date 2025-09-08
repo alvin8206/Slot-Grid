@@ -626,8 +626,8 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
     const [pngStyle, setPngStyle] = useState<PngStyle>('minimal');
     const [bgColor, setBgColor] = useState('transparent');
     const [textColor, setTextColor] = useState('#111827');
-    const [borderColor, setBorderColor] = useState('#E5E7EB');
-    const [blockColor, setBlockColor] = useState('#F9FAFB');
+    const [borderColor, setBorderColor] = useState('transparent');
+    const [blockColor, setBlockColor] = useState('transparent');
     const [showTitle, setShowTitle] = useState(true);
     const [showYearMonth, setShowYearMonth] = useState(true);
     const [showBookedSlots, setShowBookedSlots] = useState(true);
@@ -903,8 +903,8 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
 
         switch (pngStyle) {
             case 'minimal':
-                styles.backgroundColor = 'transparent';
-                styles.border = `1px solid transparent`;
+                styles.backgroundColor = blockColor;
+                styles.border = `1px solid ${borderColor}`;
                 break;
             case 'borderless':
                 styles.backgroundColor = blockColor;
@@ -1190,13 +1190,13 @@ const App: React.FC = () => {
                             
                             return (
                                 <div key={index} onClick={() => handleDayClick(day)}
-                                    className={`${daySlots.length > 0 ? 'min-h-32' : 'h-18'} border rounded-lg p-1.5 flex flex-col transition-all duration-200 
+                                    className={`flex flex-col transition-all duration-200 border rounded-lg p-1.5
                                     ${day.isCurrentMonth ? 'cursor-pointer bg-white hover:border-blue-500 hover:shadow-md' : 'bg-gray-50 text-gray-400'}
                                     ${day.isToday ? 'border-2 border-blue-500' : 'border-gray-200'}
                                     `}>
                                     <span className={`font-bold self-start flex-shrink-0 ${day.isToday ? 'text-blue-600' : day.isCurrentMonth ? 'text-gray-800' : ''}`}>{day.date.getDate()}</span>
                                     {day.isCurrentMonth && daySlots.length > 0 && (
-                                        <div className="overflow-y-auto mt-1 flex-grow -mx-1 px-1">
+                                        <div className="mt-1 -mx-1 px-1">
                                             <ul className="text-[9px] text-left">
                                                 {daySlots.sort((a, b) => a.time.localeCompare(b.time)).map(slot => (
                                                     <li key={slot.time}
@@ -1228,7 +1228,7 @@ const App: React.FC = () => {
                 style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
             >
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     <div className="grid grid-cols-2 gap-4">
                          <button onClick={() => setIsTextExportOpen(true)} className="w-full bg-white font-semibold text-gray-700 py-3 px-4 rounded-lg shadow-md hover:shadow-lg hover:text-blue-600 transition-all flex items-center justify-center gap-2">
                             匯出文字
                         </button>
