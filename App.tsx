@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import type { ScheduleData, CalendarDay, PngStyle, Slot } from './types';
 import { MONTH_NAMES, DAY_NAMES, PREDEFINED_SLOTS, MONTH_NAMES_EN, DAY_NAMES_EN } from './constants';
-import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, CloseIcon, TrashIcon, CopyIcon, ClipboardIcon, CalendarIcon, EditIcon, RainbowIcon, UserIcon, GoogleIcon } from './components/icons';
+import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, CloseIcon, TrashIcon, CopyIcon, ClipboardIcon, CalendarIcon, EditIcon, RainbowIcon, UserIcon, GoogleIcon, CheckIcon } from './components/icons';
 import { auth, db, googleProvider, isFirebaseConfigured } from './firebaseClient';
 import { AdSlot } from './components/AdSlot';
 
@@ -113,11 +113,48 @@ interface ModalProps {
 }
 
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerContent, children, modalClassName }) => {
+  const footerRef = useRef<HTMLElement>(null);
+  const [footerHeight, setFooterHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !footerRef.current) return;
+    
+    const observer = new ResizeObserver(entries => {
+      for (let entry of entries) {
+        setFooterHeight(entry.target.getBoundingClientRect().height);
+      }
+    });
+
+    observer.observe(footerRef.current);
+    return () => observer.disconnect();
+  }, [isOpen, footerContent]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-70 flex items-end md:items-center justify-center z-50 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-      <div className={`relative bg-white dark:bg-gray-800 w-full h-full md:rounded-2xl md:shadow-2xl md:h-auto md:max-h-[calc(100vh-4rem)] flex flex-col transition-transform duration-300 ${isOpen ? 'translate-y-0' : 'translate-y-full md:translate-y-4'} ${modalClassName || 'md:max-w-lg'}`}>
+    <div 
+      onClick={onClose}
+      className={`fixed inset-0 bg-black bg-opacity-70 flex items-end xl:items-center justify-center z-50 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+    >
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        className={`relative bg-white dark:bg-gray-800 w-full h-full xl:rounded-2xl xl:shadow-2xl xl:h-auto xl:max-h-[calc(100vh-4rem)] flex flex-col transition-transform duration-300 ${isOpen ? 'translate-y-0' : 'translate-y-full xl:translate-y-4'} ${modalClassName || 'xl:max-w-lg'}`}
+      >
         
         <header 
           className="flex-shrink-0 flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-10"
@@ -127,14 +164,15 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerCon
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 rounded-full flex-shrink-0 ml-4"><CloseIcon /></button>
         </header>
 
-        <main className="flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900">
-            <div className="p-4 md:p-6 pb-32">
+        <main className="flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900" style={{ paddingBottom: footerHeight ? `${footerHeight}px` : '8rem' }}>
+            <div className="p-4 md:p-6">
                 {children}
             </div>
         </main>
         
         <footer 
-            className="flex-shrink-0 z-10 -mt-24 bg-gradient-to-t from-white dark:from-gray-800 to-white/0 dark:to-gray-800/0 backdrop-blur-sm pt-8 pb-4"
+            ref={footerRef}
+            className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white dark:from-gray-800 to-white/0 dark:to-gray-800/0 backdrop-blur-sm pt-8 pb-4"
             style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
         >
             <div className="container mx-auto px-4">
@@ -730,7 +768,9 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
     const [horizontalGap, setHorizontalGap] = useState(8);
     const [verticalGap, setVerticalGap] = useState(8);
     const [localTitle, setLocalTitle] = useState(title);
-    const [isLoading, setIsLoading] = useState(false);
+    
+    const [exportStage, setExportStage] = useState<'configuring' | 'generating' | 'completed'>('configuring');
+    const [generatedPngDataUrl, setGeneratedPngDataUrl] = useState<string | null>(null);
     const [loadingMessage, setLoadingMessage] = useState('');
 
     const LOADING_MESSAGES = useMemo(() => [
@@ -739,10 +779,17 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
         '正在繪製高解析度圖片...',
         '差不多完成了！',
     ], []);
+    
+    useEffect(() => {
+        if (isOpen) {
+            setExportStage('configuring');
+            setGeneratedPngDataUrl(null);
+        }
+    }, [isOpen]);
 
     useEffect(() => {
         let messageInterval: number;
-        if (isLoading) {
+        if (exportStage === 'generating') {
             let i = 0;
             setLoadingMessage(LOADING_MESSAGES[i]);
             messageInterval = window.setInterval(() => {
@@ -753,7 +800,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
         return () => {
             clearInterval(messageInterval);
         };
-    }, [isLoading, LOADING_MESSAGES]);
+    }, [exportStage, LOADING_MESSAGES]);
 
     useEffect(() => {
         setLocalTitle(title);
@@ -807,44 +854,67 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
         };
     }, [isOpen]);
     
-    const handleDownload = useCallback(() => {
-        setIsLoading(true);
-    }, []);
+    const propsForContent = useMemo(() => ({ scheduleData, title: localTitle, calendarDays, currentDate, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, fontScale, font, language, horizontalGap, verticalGap, showShadow }), [scheduleData, localTitle, calendarDays, currentDate, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, fontScale, font, language, horizontalGap, verticalGap, showShadow]);
 
-    useEffect(() => {
-        if (!isLoading || !finalExportRef.current) {
-            return;
-        }
+    const handleStartExport = useCallback(async () => {
+        setExportStage('generating');
 
-        const exportNode = finalExportRef.current;
-
-        const processExport = async () => {
+        // Wait for next render cycle to ensure finalExportRef is available
+        setTimeout(async () => {
             try {
+                const exportNode = finalExportRef.current;
+                if (!exportNode) {
+                    throw new Error("Export node is not available for capture.");
+                }
+
                 const fontEmbedCSS = await getFontEmbedCss(font);
-                const dataUrl = await htmlToImage.toPng(exportNode, {
+                const imagePromise = htmlToImage.toPng(exportNode, {
                     quality: 1,
                     pixelRatio: 2,
                     backgroundColor: bgColor,
                     fontEmbedCSS: fontEmbedCSS,
                 });
-                const link = document.createElement('a');
-                const monthName = MONTH_NAMES_EN[currentDate.getMonth()];
-                const year = currentDate.getFullYear();
-                link.download = `${localTitle}-${year}-${monthName}.png`;
-                link.href = dataUrl;
-                link.click();
-            } catch (error) {
-                console.error('oops, something went wrong!', error);
-                alert('匯出圖片時發生錯誤！');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        
-        const timerId = setTimeout(processExport, 100);
+                
+                const timerPromise = new Promise(resolve => setTimeout(resolve, 8000));
 
-        return () => clearTimeout(timerId);
-    }, [isLoading, bgColor, localTitle, currentDate, font]);
+                const [dataUrl] = await Promise.all([imagePromise, timerPromise]);
+
+                setGeneratedPngDataUrl(dataUrl as string);
+                setExportStage('completed');
+
+            } catch (error) {
+                console.error('Oops, something went wrong during PNG export!', error);
+                alert('匯出圖片時發生錯誤！');
+                setExportStage('configuring');
+            }
+        }, 100); // A small delay to ensure DOM update
+    }, [font, bgColor, currentDate, localTitle]);
+
+    const handleDownloadFile = useCallback(() => {
+        if (!generatedPngDataUrl) return;
+        const link = document.createElement('a');
+        const monthName = MONTH_NAMES_EN[currentDate.getMonth()];
+        const year = currentDate.getFullYear();
+        link.download = `${localTitle}-${year}-${monthName}.png`;
+        link.href = generatedPngDataUrl;
+        link.click();
+    }, [generatedPngDataUrl, localTitle, currentDate]);
+
+    const handleOpenInNewTab = useCallback(async () => {
+        if (!generatedPngDataUrl) return;
+        try {
+            const response = await fetch(generatedPngDataUrl);
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            window.open(objectUrl, '_blank', 'noopener,noreferrer');
+            // Clean up the object URL after a short delay
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
+        } catch (error) {
+            console.error('Error opening image in new tab:', error);
+            // Fallback to original method if blob creation fails
+            window.open(generatedPngDataUrl, '_blank', 'noopener,noreferrer');
+        }
+    }, [generatedPngDataUrl]);
 
      const handleStyleChange = (style: PngStyle) => {
         setPngStyle(style);
@@ -867,40 +937,85 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
     
     if (!isOpen) return null;
 
-    const propsForContent = { scheduleData, title: localTitle, calendarDays, currentDate, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, fontScale, font, language, horizontalGap, verticalGap, showShadow };
-
-    const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">匯出 PNG 圖片</h2>;
+    const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{exportStage === 'completed' ? '匯出成功！' : '匯出 PNG 圖片'}</h2>;
     const footer = (
         <>
             {loginPromptContent}
-            <div className="grid grid-cols-2 gap-3 w-full">
-                <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" disabled={isLoading}>關閉</button>
-                <button onClick={handleDownload} disabled={isLoading} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50">
-                    {isLoading ? loadingMessage : <><DownloadIcon /> 下載 PNG</>}
+            {exportStage === 'completed' ? (
+                 <button onClick={onClose} className="w-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                    完成
                 </button>
-            </div>
+            ) : (
+                <div className="grid grid-cols-2 gap-3 w-full">
+                    <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" disabled={exportStage === 'generating'}>關閉</button>
+                    <button onClick={handleStartExport} disabled={exportStage === 'generating'} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-wait">
+                        {exportStage === 'generating' ? loadingMessage : <><DownloadIcon /> 下載 PNG</>}
+                    </button>
+                </div>
+            )}
         </>
     );
 
     return (
-        <Modal isOpen={isOpen} onClose={isLoading ? () => {} : onClose} headerContent={header} footerContent={footer} modalClassName="md:max-w-4xl">
+        <Modal isOpen={isOpen} onClose={exportStage === 'generating' ? () => {} : onClose} headerContent={header} footerContent={footer} modalClassName="xl:max-w-4xl">
             {/* The off-screen element for high-quality export */}
-            {isLoading && (
+            {exportStage === 'generating' && (
                 <div style={{ position: 'fixed', top: '0', left: '-9999px' }}>
                     <PngExportContent ref={finalExportRef} {...propsForContent} />
                 </div>
             )}
-            {isLoading && (
+            
+            {(exportStage === 'generating' || exportStage === 'completed') && (
                 <div className="absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 p-4">
-                    <DownloadIcon className="w-12 h-12 text-blue-600" />
-                    <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">{loadingMessage}</p>
+                     {exportStage === 'completed' && (
+                        <>
+                            <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-2 rounded-full z-10">
+                                <CloseIcon />
+                            </button>
+                            <button 
+                                onClick={onClose} 
+                                className="absolute bottom-4 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:underline"
+                                style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
+                            >
+                                關閉
+                            </button>
+                        </>
+                    )}
+
+                    <div className="relative w-16 h-16 flex items-center justify-center">
+                        <DownloadIcon
+                            className={`w-12 h-12 text-blue-600 transition-all duration-300 
+                                ${exportStage === 'generating' ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-50'}`
+                            }
+                        />
+                        <CheckIcon
+                            className={`w-16 h-16 text-green-500 absolute transition-all duration-300 delay-200
+                                ${exportStage === 'completed' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`
+                            }
+                        />
+                    </div>
+
+                    <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">
+                        {exportStage === 'completed' ? '成功！圖片已準備就緒。' : loadingMessage}
+                    </p>
+                    
+                    <div className={`flex flex-col sm:flex-row gap-3 w-full max-w-sm mt-6 transition-opacity duration-500 delay-500 ${exportStage === 'completed' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                        <button onClick={handleOpenInNewTab} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                            在新分頁開啟
+                        </button>
+                        <button onClick={handleDownloadFile} className="w-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                            直接下載 .png
+                        </button>
+                    </div>
+
                     <AdSlot className="mt-6 w-full" allowedHostnames={['your.app', 'your-short.link', 'bit.ly']} />
                 </div>
             )}
-            <div className={`flex flex-col md:flex-row gap-6 items-start ${isLoading ? 'invisible' : ''}`}>
-                <div className="w-full md:w-1/2 md:sticky md:top-0">
-                     <div style={{paddingTop: `calc(1rem + env(safe-area-inset-top))`}} >
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">預覽</h3>
+
+            <div className={`flex flex-col lg:flex-row gap-6 items-start ${exportStage !== 'configuring' ? 'invisible' : ''}`}>
+                <div className="w-full lg:w-1/2 lg:sticky lg:top-0">
+                     <div className="space-y-2">
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">預覽</h3>
                         <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden">
                             <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out' }}>
                                 <PngExportContent ref={exportRef} {...propsForContent} />
@@ -908,7 +1023,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                         </div>
                     </div>
                 </div>
-                <div className="w-full md:w-1/2 space-y-6">
+                <div className="w-full lg:w-1/2 space-y-6">
                     <SettingsSection title="標題">
                         <input type="text" value={localTitle} onChange={e => setLocalTitle(e.target.value)} className="w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100"/>
                     </SettingsSection>

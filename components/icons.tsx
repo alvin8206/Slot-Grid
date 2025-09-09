@@ -107,3 +107,9 @@ export const GoogleIcon = ({ className, ...props }: React.ComponentProps<'svg'>)
         </defs>
     </svg>
 );
+
+export const CheckIcon = ({ className, ...props }: React.ComponentProps<'svg'>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={['h-6 w-6', className].filter(Boolean).join(' ')} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+);
