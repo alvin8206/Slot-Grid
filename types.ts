@@ -13,4 +13,4 @@ export interface CalendarDay {
   isToday: boolean;
 }
 
-export type PngStyle = 'minimal' | 'borderless' | 'wireframe';
+export type PngStyle = 'minimal' | 'borderless' | 'wireframe' | 'custom';

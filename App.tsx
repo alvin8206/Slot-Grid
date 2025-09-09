@@ -3,6 +3,7 @@ import type { ScheduleData, CalendarDay, PngStyle, Slot } from './types';
 import { MONTH_NAMES, DAY_NAMES, PREDEFINED_SLOTS, MONTH_NAMES_EN, DAY_NAMES_EN } from './constants';
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, CloseIcon, TrashIcon, CopyIcon, ClipboardIcon, CalendarIcon, EditIcon, RainbowIcon, UserIcon, GoogleIcon } from './components/icons';
 import { auth, db, googleProvider, isFirebaseConfigured } from './firebaseClient';
+import { AdSlot } from './components/AdSlot';
 
 // This declaration is necessary because html-to-image is loaded from a CDN.
 declare const htmlToImage: {
@@ -42,8 +43,58 @@ const formatDateKey = (date: Date): string => {
 
 const applyStrikethrough = (text: string) => text.split('').join('\u0336') + '\u0336';
 
-// --- Child Components ---
+async function getFontEmbedCss(fontId: string): Promise<string> {
+    const font = FONT_OPTIONS.find(f => f.id === fontId);
+    if (!font) return '';
 
+    const url = `https://fonts.googleapis.com/css2?family=${font.urlValue.replace(/ /g, '+')}&display=swap`;
+
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+            },
+        });
+        const cssText = await response.text();
+        
+        const fontUrls = cssText.match(/url\(([^)]+)\)/g) || [];
+        
+        const dataUrlPromises = fontUrls.map(async (fontUrl) => {
+            const urlMatch = fontUrl.match(/url\(([^)]+)\)/);
+            if (!urlMatch) return null;
+            
+            const realUrl = urlMatch[1].replace(/['"]/g, '');
+            const fontResponse = await fetch(realUrl);
+            const blob = await fontResponse.blob();
+            
+            return new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    resolve(reader.result as string);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        });
+
+        const dataUrls = await Promise.all(dataUrlPromises);
+        
+        let finalCssText = cssText;
+        dataUrls.forEach((dataUrl, index) => {
+            if (dataUrl && fontUrls[index]) {
+                finalCssText = finalCssText.replace(fontUrls[index], `url(${dataUrl})`);
+            }
+        });
+        
+        return finalCssText;
+    } catch (error) {
+        console.error('Error fetching or embedding fonts:', error);
+        return '';
+    }
+}
+
+
+// --- Child Components ---
 // A simple interface for the user object from Firebase Auth
 interface User {
   uid: string;
@@ -65,31 +116,36 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerCon
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-40 flex items-end md:items-center justify-center z-50 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-      <div className={`bg-white w-full h-full flex flex-col md:overflow-hidden md:rounded-2xl md:shadow-2xl md:h-auto md:max-h-[calc(100vh-4rem)] transition-transform duration-300 ${isOpen ? 'translate-y-0' : 'translate-y-full md:translate-y-4'} ${modalClassName || 'md:max-w-lg'}`}>
+    <div className={`fixed inset-0 bg-black bg-opacity-70 flex items-end md:items-center justify-center z-50 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+      <div className={`relative bg-white dark:bg-gray-800 w-full h-full md:rounded-2xl md:shadow-2xl md:h-auto md:max-h-[calc(100vh-4rem)] flex flex-col transition-transform duration-300 ${isOpen ? 'translate-y-0' : 'translate-y-full md:translate-y-4'} ${modalClassName || 'md:max-w-lg'}`}>
         
         <header 
-          className="flex-shrink-0 flex justify-between items-center p-4 border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-10"
-          style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}
+          className="flex-shrink-0 flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-10"
+          style={{ paddingTop: `calc(1rem + env(safe-area-inset-top))` }}
         >
           <div className="flex-grow">{headerContent}</div>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 p-1 rounded-full flex-shrink-0 ml-4"><CloseIcon /></button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 rounded-full flex-shrink-0 ml-4"><CloseIcon /></button>
         </header>
 
-        <main className="flex-grow overflow-y-auto p-4 md:p-6 bg-gray-50">
-          {children}
+        <main className="flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900">
+            <div className="p-4 md:p-6 pb-32">
+                {children}
+            </div>
         </main>
-
+        
         <footer 
-          className="flex-shrink-0 p-4 border-t border-gray-200 bg-white/80 backdrop-blur-sm sticky bottom-0 z-10"
-          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+            className="flex-shrink-0 z-10 -mt-24 bg-gradient-to-t from-white dark:from-gray-800 to-white/0 dark:to-gray-800/0 backdrop-blur-sm pt-8 pb-4"
+            style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
         >
-          {footerContent}
+            <div className="container mx-auto px-4">
+                 {footerContent}
+            </div>
         </footer>
       </div>
     </div>
   );
 };
+
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -142,7 +198,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         }
     };
     
-    const header = <h2 className="text-xl font-bold text-center text-gray-800">{isRegistering ? '註冊帳號' : '登入'}</h2>;
+    const header = <h2 className="text-xl font-bold text-center text-gray-800 dark:text-gray-100">{isRegistering ? '註冊帳號' : '登入'}</h2>;
     
     const footer = (
       <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
@@ -156,20 +212,20 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                  {error && <p className="bg-red-100 text-red-700 text-sm p-3 rounded-lg mb-4">{error}</p>}
                 
                 <div className="space-y-4">
-                    <input type="email" placeholder="電子郵件" value={email} onChange={e => setEmail(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition bg-white text-gray-800" />
-                    <input type="password" placeholder="密碼 (至少6位數)" value={password} onChange={e => setPassword(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition bg-white text-gray-800" />
+                    <input type="email" placeholder="電子郵件" value={email} onChange={e => setEmail(e.target.value)} required className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 transition bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100" />
+                    <input type="password" placeholder="密碼 (至少6位數)" value={password} onChange={e => setPassword(e.target.value)} required className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 transition bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100" />
                 </div>
                 
                 <div className="relative my-6">
-                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300"></div></div>
-                    <div className="relative flex justify-center text-sm"><span className="px-2 bg-gray-50 text-gray-500">或</span></div>
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300 dark:border-gray-600"></div></div>
+                    <div className="relative flex justify-center text-sm"><span className="px-2 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">或</span></div>
                 </div>
 
-                <button type="button" onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-white border border-gray-300 text-gray-700 font-bold py-3 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                <button type="button" onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition flex items-center justify-center gap-2 disabled:opacity-50">
                     <GoogleIcon /> 使用 Google 登入
                 </button>
                 
-                <p className="text-center text-sm text-gray-500 mt-6">
+                <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
                     {isRegistering ? '已經有帳號了？' : '還沒有帳號？'}
                     <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="font-semibold text-blue-600 hover:underline ml-1">
                         {isRegistering ? '立即登入' : '立即註冊'}
@@ -189,9 +245,10 @@ interface SlotEditorModalProps {
   onDone: (updatedDay: { date: Date, slots: Slot[] }, pastedDays: string[]) => void;
   copiedSlots: Slot[] | null;
   onCopy: (slots: Slot[]) => void;
+  loginPromptContent?: React.ReactNode;
 }
 
-const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, scheduleData, calendarDays, onClose, onDone, copiedSlots, onCopy }) => {
+const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, scheduleData, calendarDays, onClose, onDone, copiedSlots, onCopy, loginPromptContent }) => {
   const [localSlots, setLocalSlots] = useState<Map<string, Slot>>(new Map());
   const [customSlot, setCustomSlot] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
@@ -283,56 +340,77 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
     }
     onClose();
   };
+
+  const handleCustomSlotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/[^0-9]/g, '');
+    let formattedValue = rawValue;
+
+    if (rawValue.length > 2) {
+      formattedValue = `${rawValue.slice(0, 2)}:${rawValue.slice(2, 4)}`;
+    }
+    
+    setCustomSlot(formattedValue);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddCustomSlot();
+    }
+  };
   
   if (!isOpen || !selectedDay) return null;
   const currentSlotsArray = getSortedSlots(localSlots);
 
   const header = (
       <div>
-        <h2 className="text-xl font-bold text-gray-800">編輯時段</h2>
-        <p className="text-sm text-gray-500">{`${selectedDay.getFullYear()} 年 ${MONTH_NAMES[selectedDay.getMonth()]} ${selectedDay.getDate()} 日`}</p>
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">編輯時段</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{`${selectedDay.getFullYear()} 年 ${MONTH_NAMES[selectedDay.getMonth()]} ${selectedDay.getDate()} 日`}</p>
       </div>
   );
 
   const footer = (
-    <div className="grid grid-cols-2 gap-3 w-full">
-        <button onClick={onClose} className="bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 transition-colors">
-            關閉
-        </button>
-        <button onClick={handleDone} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">
-            完成
-        </button>
-    </div>
+    <>
+      {loginPromptContent}
+      <div className="grid grid-cols-2 gap-3 w-full">
+          <button onClick={onClose} className="bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition-colors">
+              關閉
+          </button>
+          <button onClick={handleDone} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+              完成
+          </button>
+      </div>
+    </>
   );
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer}>
         <div className="grid grid-cols-2 gap-2 mb-4">
-            <button onClick={handleCopy} className="flex items-center justify-center text-sm bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-colors"><CopyIcon/>{copySuccess ? '已複製!' : '複製此日時段'}</button>
-            <button onClick={handlePaste} disabled={!copiedSlots} className="flex items-center justify-center text-sm bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><ClipboardIcon/>貼上至此日</button>
+            <button onClick={handleCopy} className="flex items-center justify-center text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"><CopyIcon/>{copySuccess ? '已複製!' : '複製此日時段'}</button>
+            <button onClick={handlePaste} disabled={!copiedSlots} className="flex items-center justify-center text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><ClipboardIcon/>貼上至此日</button>
         </div>
 
         {copiedSlots && !isMultiPasteExpanded && (
             <button 
                 onClick={() => setIsMultiPasteExpanded(true)}
-                className="w-full text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-lg transition-colors mb-4"
+                className="w-full text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-lg dark:bg-blue-900/50 dark:hover:bg-blue-900 dark:text-blue-300 transition-colors mb-4"
             >
                 貼上至多個日期...
             </button>
         )}
 
         {copiedSlots && isMultiPasteExpanded && (
-            <div className="mb-4 bg-white p-3 rounded-lg border border-gray-200">
+            <div className="mb-4 bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold text-blue-800">貼上至多個日期</h3>
+                    <h3 className="font-semibold text-blue-800 dark:text-blue-300">貼上至多個日期</h3>
                     <button 
                         onClick={handlePasteToAll}
-                        className="text-xs bg-blue-200 text-blue-800 font-semibold px-2 py-1 rounded-md hover:bg-blue-300 transition-colors"
+                        className="text-xs bg-blue-200 text-blue-800 font-semibold px-2 py-1 rounded-md hover:bg-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 transition-colors"
                     >
                         貼上全部
                     </button>
                 </div>
-                <div className="grid grid-cols-7 gap-1 text-center font-semibold text-gray-500 text-xs mb-2">
+                <div className="grid grid-cols-7 gap-1 text-center font-semibold text-gray-500 dark:text-gray-400 text-xs mb-2">
                     {DAY_NAMES.map(day => <div key={day}>{day}</div>)}
                 </div>
                 <div className="grid grid-cols-7 gap-1">
@@ -343,8 +421,8 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
                         return (
                             <div key={index} onClick={() => isCurrentMonth && !isTargetDay && toggleMultiPasteDate(date)} 
                                 className={`aspect-square border rounded-lg p-1 text-xs transition-all flex items-center justify-center 
-                                ${!isCurrentMonth ? 'bg-gray-100 text-gray-400' : (isTargetDay ? 'bg-gray-300' : 'cursor-pointer')}
-                                ${isSelected ? 'bg-blue-600 border-blue-700 font-bold text-white' : (isCurrentMonth && !isTargetDay ? 'bg-white hover:bg-blue-100 text-gray-800' : '')}
+                                ${!isCurrentMonth ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500' : (isTargetDay ? 'bg-gray-300 dark:bg-gray-600' : 'cursor-pointer')}
+                                ${isSelected ? 'bg-blue-600 border-blue-700 font-bold text-white' : (isCurrentMonth && !isTargetDay ? 'bg-white dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-blue-600 text-gray-800 dark:text-gray-200' : '')}
                                 `}>
                                 {date.getDate()}
                             </div>
@@ -355,8 +433,8 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
             )}
 
         <div className="mb-4">
-            <h3 className="font-semibold text-gray-700 mb-2">已選時段 ({currentSlotsArray.length})</h3>
-            <div className="bg-white p-3 rounded-lg min-h-[80px] border">
+            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">已選時段 ({currentSlotsArray.length})</h3>
+            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg min-h-[80px] border dark:border-gray-700">
                 {currentSlotsArray.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                         {currentSlotsArray.map(slot => (
@@ -373,18 +451,27 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
         </div>
         
         <div className="mb-4">
-            <h3 className="font-semibold text-gray-700 mb-2">快速新增</h3>
+            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">快速新增</h3>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {PREDEFINED_SLOTS.map(slot => (
-                    <button key={slot} onClick={() => handleQuickAdd(slot)} disabled={localSlots.has(slot)} className="p-2 rounded-lg text-sm text-center transition-colors font-medium border bg-white text-gray-700 hover:bg-gray-100 border-gray-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed">{slot}</button>
+                    <button key={slot} onClick={() => handleQuickAdd(slot)} disabled={localSlots.has(slot)} className="p-2 rounded-lg text-sm text-center transition-colors font-medium border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600 disabled:bg-gray-200 dark:disabled:bg-gray-800/50 disabled:text-gray-400 disabled:cursor-not-allowed">{slot}</button>
                 ))}
             </div>
         </div>
 
         <div>
-            <h3 className="font-semibold text-gray-700 mb-2">自訂時段</h3>
+            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">自訂時段</h3>
             <div className="flex gap-2">
-                <input type="time" value={customSlot} onChange={e => setCustomSlot(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition bg-white text-gray-800"/>
+                <input 
+                    type="text"
+                    value={customSlot}
+                    onChange={handleCustomSlotChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="HH:MM"
+                    maxLength={5}
+                    inputMode="numeric"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+                />
                 <button onClick={handleAddCustomSlot} className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0">新增</button>
             </div>
         </div>
@@ -398,9 +485,10 @@ interface TextExportModalProps {
     scheduleData: ScheduleData;
     title: string;
     currentDate: Date;
+    loginPromptContent?: React.ReactNode;
 }
 
-const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, scheduleData, title, currentDate }) => {
+const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, scheduleData, title, currentDate, loginPromptContent }) => {
     const [copyButtonText, setCopyButtonText] = useState('複製內文');
     const [layout, setLayout] = useState<'default' | 'compact'>('default');
     const [language, setLanguage] = useState<'zh' | 'en'>('zh');
@@ -478,66 +566,69 @@ const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, sche
 
     if (!isOpen) return null;
 
-    const header = <h2 className="text-xl font-bold text-gray-800">匯出文字格式</h2>;
+    const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">匯出文字格式</h2>;
     const footer = (
-        <div className="grid grid-cols-2 gap-3 w-full">
-            <button onClick={onClose} className="bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 transition-colors">關閉</button>
-            <button onClick={handleCopy} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">{copyButtonText}</button>
-        </div>
+        <>
+            {loginPromptContent}
+            <div className="grid grid-cols-2 gap-3 w-full">
+                <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">關閉</button>
+                <button onClick={handleCopy} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">{copyButtonText}</button>
+            </div>
+        </>
     );
     
     return (
         <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer}>
             <div className="space-y-6">
                 <div className="space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">排版</label>
-                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 p-1">
-                        <button onClick={() => setLayout('default')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'default' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>詳細</button>
-                        <button onClick={() => setLayout('compact')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'compact' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>緊湊</button>
+                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">排版</label>
+                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                        <button onClick={() => setLayout('default')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'default' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>詳細</button>
+                        <button onClick={() => setLayout('compact')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'compact' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>緊湊</button>
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">語言</label>
-                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 p-1">
-                        <button onClick={() => setLanguage('zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>中文</button>
-                        <button onClick={() => setLanguage('en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>English</button>
+                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">語言</label>
+                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                        <button onClick={() => setLanguage('zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>中文</button>
+                        <button onClick={() => setLanguage('en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>English</button>
                     </div>
                 </div>
                 
                 <div className="space-y-3">
-                    <label htmlFor="include-year" className="flex items-center justify-between bg-white p-3 rounded-lg border cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700">包含年份</span>
+                    <label htmlFor="include-year" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">包含年份</span>
                         <div className="relative">
                             <input type="checkbox" id="include-year" className="sr-only peer" checked={includeYear} onChange={e => setIncludeYear(e.target.checked)} />
-                            <div className="block bg-gray-200 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
                             <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
                         </div>
                     </label>
-                    <label htmlFor="show-booked" className="flex items-center justify-between bg-white p-3 rounded-lg border cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700">顯示已預約時段</span>
+                    <label htmlFor="show-booked" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示已預約時段</span>
                         <div className="relative">
                             <input type="checkbox" id="show-booked" className="sr-only peer" checked={showBooked} onChange={e => setShowBooked(e.target.checked)} />
-                            <div className="block bg-gray-200 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
                             <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
                         </div>
                     </label>
                     {showBooked && (
-                        <div className="space-y-2 pt-3 border-t border-gray-200/60">
-                            <label className="text-sm font-semibold text-gray-700">已預約樣式</label>
-                            <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 p-1">
-                                <button onClick={() => setBookedStyle('strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>刪除線</button>
-                                <button onClick={() => setBookedStyle('annotation')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'annotation' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>文字註記</button>
+                        <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
+                            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
+                            <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                <button onClick={() => setBookedStyle('strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>刪除線</button>
+                                <button onClick={() => setBookedStyle('annotation')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'annotation' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>文字註記</button>
                             </div>
                         </div>
                     )}
                 </div>
 
-                <div className="bg-white p-3 rounded-lg border">
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
                     <textarea 
                         readOnly 
                         value={generatedText}
-                        className="w-full h-48 md:h-56 bg-transparent resize-none border-none focus:ring-0 text-sm text-gray-800"
+                        className="w-full h-48 md:h-56 bg-transparent resize-none border-none focus:ring-0 text-sm text-gray-800 dark:text-gray-200"
                     />
                 </div>
             </div>
@@ -558,7 +649,7 @@ const ColorPickerInput: React.FC<ColorPickerInputProps> = ({ value, onChange, is
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 shadow-sm ${isCustom ? 'ring-2 ring-offset-2 ring-blue-500' : 'ring-1 ring-inset ring-gray-300'}`}
+        className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 shadow-sm ${isCustom ? 'ring-2 ring-offset-2 ring-blue-500' : 'ring-1 ring-inset ring-gray-300 dark:ring-gray-600'}`}
       >
         <RainbowIcon />
       </button>
@@ -580,13 +671,12 @@ interface PngExportModalProps {
     title: string;
     calendarDays: CalendarDay[];
     currentDate: Date;
-    onAuthRequest: () => void;
-    isLoggedIn: boolean;
+    loginPromptContent?: React.ReactNode;
 }
 
 const SettingsSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">{title}</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{title}</h3>
         <div className="space-y-3">{children}</div>
     </div>
 );
@@ -595,7 +685,7 @@ const ColorSelector: React.FC<{ label: string; value: string; onChange: (color: 
     const isCustom = !presets.includes(value);
     return (
         <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">{label}</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">{label}</span>
             <div className="flex items-center gap-2">
                 {presets.map(color => {
                     if (color === 'transparent') {
@@ -604,12 +694,12 @@ const ColorSelector: React.FC<{ label: string; value: string; onChange: (color: 
                                 key={color}
                                 type="button"
                                 onClick={() => onChange(color)}
-                                className={`w-6 h-6 rounded-full transition-transform transform hover:scale-110 shadow-sm border bg-[conic-gradient(from_90deg_at_50%_50%,#ccc_25%,#fff_0,#fff_50%,#ccc_0,#ccc_75%,#fff_0)] bg-[length:10px_10px] ${value === color ? 'ring-2 ring-offset-1 ring-blue-500' : 'border-gray-300'}`}
+                                className={`w-6 h-6 rounded-full transition-transform transform hover:scale-110 shadow-sm border bg-[conic-gradient(from_90deg_at_50%_50%,#ccc_25%,#fff_0,#fff_50%,#ccc_0,#ccc_75%,#fff_0)] bg-[length:10px_10px] ${value === color ? 'ring-2 ring-offset-1 ring-blue-500' : 'border-gray-300 dark:border-gray-600'}`}
                             />
                        );
                     }
                     return (
-                        <button key={color} type="button" onClick={() => onChange(color)} className={`w-6 h-6 rounded-full transition-transform transform hover:scale-110 shadow-sm border ${value.toUpperCase() === color.toUpperCase() ? 'ring-2 ring-offset-1 ring-blue-500' : ''}`} style={{ backgroundColor: color }} />
+                        <button key={color} type="button" onClick={() => onChange(color)} className={`w-6 h-6 rounded-full transition-transform transform hover:scale-110 shadow-sm border dark:border-gray-700 ${value.toUpperCase() === color.toUpperCase() ? 'ring-2 ring-offset-1 ring-blue-500' : ''}`} style={{ backgroundColor: color }} />
                     )
                 })}
                 <ColorPickerInput value={value} onChange={onChange} isCustom={isCustom} />
@@ -618,16 +708,18 @@ const ColorSelector: React.FC<{ label: string; value: string; onChange: (color: 
     );
 };
 
-const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, scheduleData, title, calendarDays, currentDate, onAuthRequest, isLoggedIn }) => {
+const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, scheduleData, title, calendarDays, currentDate, loginPromptContent }) => {
     const exportRef = useRef<HTMLDivElement>(null);
     const previewContainerRef = useRef<HTMLDivElement>(null);
     const scaleWrapperRef = useRef<HTMLDivElement>(null);
+    const finalExportRef = useRef<HTMLDivElement>(null);
     
     const [pngStyle, setPngStyle] = useState<PngStyle>('minimal');
     const [bgColor, setBgColor] = useState('transparent');
     const [textColor, setTextColor] = useState('#111827');
     const [borderColor, setBorderColor] = useState('transparent');
     const [blockColor, setBlockColor] = useState('transparent');
+    const [showShadow, setShowShadow] = useState(false);
     const [showTitle, setShowTitle] = useState(true);
     const [showYearMonth, setShowYearMonth] = useState(true);
     const [showBookedSlots, setShowBookedSlots] = useState(true);
@@ -639,7 +731,30 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
     const [verticalGap, setVerticalGap] = useState(8);
     const [localTitle, setLocalTitle] = useState(title);
     const [isLoading, setIsLoading] = useState(false);
-    
+    const [loadingMessage, setLoadingMessage] = useState('');
+
+    const LOADING_MESSAGES = useMemo(() => [
+        '正在準備您的月曆...',
+        '正在嵌入漂亮的字體...',
+        '正在繪製高解析度圖片...',
+        '差不多完成了！',
+    ], []);
+
+    useEffect(() => {
+        let messageInterval: number;
+        if (isLoading) {
+            let i = 0;
+            setLoadingMessage(LOADING_MESSAGES[i]);
+            messageInterval = window.setInterval(() => {
+                i = (i + 1) % LOADING_MESSAGES.length;
+                setLoadingMessage(LOADING_MESSAGES[i]);
+            }, 2500);
+        }
+        return () => {
+            clearInterval(messageInterval);
+        };
+    }, [isLoading, LOADING_MESSAGES]);
+
     useEffect(() => {
         setLocalTitle(title);
     }, [title]);
@@ -692,149 +807,214 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
         };
     }, [isOpen]);
     
-    const handleDownload = useCallback(async () => {
-        if (!exportRef.current) {
-            alert('無法匯出圖片，預覽元件不存在。');
-            return;
-        }
-        if (!isLoggedIn) {
-            onAuthRequest();
-            return;
-        }
-
+    const handleDownload = useCallback(() => {
         setIsLoading(true);
-        try {
-            const dataUrl = await htmlToImage.toPng(exportRef.current, {
-                quality: 1,
-                pixelRatio: 2,
-                backgroundColor: bgColor,
-            });
-            const link = document.createElement('a');
-            const monthName = MONTH_NAMES_EN[currentDate.getMonth()];
-            const year = currentDate.getFullYear();
-            link.download = `${localTitle}-${year}-${monthName}.png`;
-            link.href = dataUrl;
-            link.click();
-        } catch (error) {
-            console.error('oops, something went wrong!', error);
-            alert('匯出圖片時發生錯誤！');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [isLoggedIn, onAuthRequest, bgColor, localTitle, currentDate]);
+    }, []);
 
+    useEffect(() => {
+        if (!isLoading || !finalExportRef.current) {
+            return;
+        }
+
+        const exportNode = finalExportRef.current;
+
+        const processExport = async () => {
+            try {
+                const fontEmbedCSS = await getFontEmbedCss(font);
+                const dataUrl = await htmlToImage.toPng(exportNode, {
+                    quality: 1,
+                    pixelRatio: 2,
+                    backgroundColor: bgColor,
+                    fontEmbedCSS: fontEmbedCSS,
+                });
+                const link = document.createElement('a');
+                const monthName = MONTH_NAMES_EN[currentDate.getMonth()];
+                const year = currentDate.getFullYear();
+                link.download = `${localTitle}-${year}-${monthName}.png`;
+                link.href = dataUrl;
+                link.click();
+            } catch (error) {
+                console.error('oops, something went wrong!', error);
+                alert('匯出圖片時發生錯誤！');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        
+        const timerId = setTimeout(processExport, 100);
+
+        return () => clearTimeout(timerId);
+    }, [isLoading, bgColor, localTitle, currentDate, font]);
+
+     const handleStyleChange = (style: PngStyle) => {
+        setPngStyle(style);
+        // Set defaults based on the selected style
+        if (style === 'minimal') {
+            setBgColor('transparent');
+            setBorderColor('transparent');
+            setBlockColor('transparent');
+        } else if (style === 'borderless') {
+            setBgColor('#FFFFFF');
+            setBlockColor('#F9FAFB'); // light gray
+            setBorderColor('transparent');
+        } else if (style === 'wireframe') {
+            setBgColor('#FFFFFF');
+            setBorderColor('#374151'); // dark gray
+            setBlockColor('transparent');
+        }
+        // For 'custom', we don't change any colors, letting the user's choices persist.
+    };
+    
     if (!isOpen) return null;
 
-    const propsForContent = { scheduleData, title: localTitle, calendarDays, currentDate, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, fontScale, font, language, horizontalGap, verticalGap };
+    const propsForContent = { scheduleData, title: localTitle, calendarDays, currentDate, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, fontScale, font, language, horizontalGap, verticalGap, showShadow };
 
-    const header = <h2 className="text-xl font-bold text-gray-800">匯出 PNG 圖片</h2>;
+    const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">匯出 PNG 圖片</h2>;
     const footer = (
-        <div className="grid grid-cols-2 gap-3 w-full">
-            <button onClick={onClose} className="bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 transition-colors">關閉</button>
-            <button onClick={handleDownload} disabled={isLoading} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50">
-                {isLoading ? '匯出中...' : <><DownloadIcon /> {isLoggedIn ? '下載 PNG' : '登入以下載'}</>}
-            </button>
-        </div>
+        <>
+            {loginPromptContent}
+            <div className="grid grid-cols-2 gap-3 w-full">
+                <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" disabled={isLoading}>關閉</button>
+                <button onClick={handleDownload} disabled={isLoading} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50">
+                    {isLoading ? loadingMessage : <><DownloadIcon /> 下載 PNG</>}
+                </button>
+            </div>
+        </>
     );
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer} modalClassName="md:max-w-4xl">
-            <div className="flex flex-col md:flex-row gap-6 items-start">
-                <div className="w-full md:w-1/2 md:sticky md:top-[calc(4rem+env(safe-area-inset-top))]">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">預覽</h3>
-                    <div ref={previewContainerRef} className="w-full bg-gray-200/50 rounded-md">
-                        <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out' }}>
-                            <PngExportContent ref={exportRef} {...propsForContent} />
+        <Modal isOpen={isOpen} onClose={isLoading ? () => {} : onClose} headerContent={header} footerContent={footer} modalClassName="md:max-w-4xl">
+            {/* The off-screen element for high-quality export */}
+            {isLoading && (
+                <div style={{ position: 'fixed', top: '0', left: '-9999px' }}>
+                    <PngExportContent ref={finalExportRef} {...propsForContent} />
+                </div>
+            )}
+            {isLoading && (
+                <div className="absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 p-4">
+                    <DownloadIcon className="w-12 h-12 text-blue-600" />
+                    <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">{loadingMessage}</p>
+                    <AdSlot className="mt-6 w-full" allowedHostnames={['your.app', 'your-short.link', 'bit.ly']} />
+                </div>
+            )}
+            <div className={`flex flex-col md:flex-row gap-6 items-start ${isLoading ? 'invisible' : ''}`}>
+                <div className="w-full md:w-1/2 md:sticky md:top-0">
+                     <div style={{paddingTop: `calc(1rem + env(safe-area-inset-top))`}} >
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">預覽</h3>
+                        <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden">
+                            <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out' }}>
+                                <PngExportContent ref={exportRef} {...propsForContent} />
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div className="w-full md:w-1/2 space-y-6">
                     <SettingsSection title="標題">
-                        <input type="text" value={localTitle} onChange={e => setLocalTitle(e.target.value)} className="w-full p-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition text-gray-800"/>
+                        <input type="text" value={localTitle} onChange={e => setLocalTitle(e.target.value)} className="w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100"/>
                     </SettingsSection>
 
                     <SettingsSection title="內容顯示">
-                            <label htmlFor="png-show-title" className="flex items-center justify-between cursor-pointer">
-                            <span className="text-sm font-medium text-gray-700">顯示主標題</span>
+                        <label htmlFor="png-show-title" className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示主標題</span>
                             <div className="relative">
                                 <input type="checkbox" id="png-show-title" className="sr-only peer" checked={showTitle} onChange={e => setShowTitle(e.target.checked)} />
-                                <div className="block bg-gray-200 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                                <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
                                 <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
                             </div>
                         </label>
-                        <label htmlFor="png-show-year-month" className="flex items-center justify-between cursor-pointer">
-                            <span className="text-sm font-medium text-gray-700">顯示年月份</span>
+                        <label htmlFor="png-show-year-month" className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示年月份</span>
                             <div className="relative">
                                 <input type="checkbox" id="png-show-year-month" className="sr-only peer" checked={showYearMonth} onChange={e => setShowYearMonth(e.target.checked)} />
-                                <div className="block bg-gray-200 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                                <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
                                 <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
                             </div>
                         </label>
-                        <label htmlFor="png-show-booked" className="flex items-center justify-between cursor-pointer">
-                            <span className="text-sm font-medium text-gray-700">顯示已預約時段</span>
+                        <label htmlFor="png-show-booked" className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示已預約時段</span>
                             <div className="relative">
                                 <input type="checkbox" id="png-show-booked" className="sr-only peer" checked={showBookedSlots} onChange={e => setShowBookedSlots(e.target.checked)} />
-                                <div className="block bg-gray-200 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                                <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
                                 <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
                             </div>
                         </label>
                         {showBookedSlots && (
-                            <div className="space-y-2 pt-3 border-t border-gray-200/60">
-                                <label className="text-sm font-semibold text-gray-700">已預約樣式</label>
-                                <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 p-1">
-                                    <button onClick={() => setBookedStyle('red-strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'red-strikethrough' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>畫紅色橫線</button>
-                                    <button onClick={() => setBookedStyle('fade')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'fade' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>降低透明度</button>
+                            <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
+                                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
+                                <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                    <button onClick={() => setBookedStyle('red-strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'red-strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>畫紅色橫線</button>
+                                    <button onClick={() => setBookedStyle('fade')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'fade' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>降低透明度</button>
                                 </div>
                             </div>
                         )}
                     </SettingsSection>
                     
                     <SettingsSection title="整體樣式">
-                            <div className="grid grid-cols-3 gap-2 rounded-xl bg-gray-200 p-1">
-                            <button onClick={() => setPngStyle('minimal')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'minimal' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>簡約</button>
-                            <button onClick={() => setPngStyle('borderless')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'borderless' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>區塊</button>
-                            <button onClick={() => setPngStyle('wireframe')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'wireframe' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>線框</button>
+                        <div className="grid grid-cols-4 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                            <button onClick={() => handleStyleChange('minimal')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'minimal' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>簡約</button>
+                            <button onClick={() => handleStyleChange('borderless')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'borderless' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>區塊</button>
+                            <button onClick={() => handleStyleChange('wireframe')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'wireframe' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>線框</button>
+                            <button onClick={() => handleStyleChange('custom')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'custom' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>自訂</button>
                         </div>
                     </SettingsSection>
                     
                     <SettingsSection title="顏色">
-                        <ColorSelector label="背景" value={bgColor} onChange={setBgColor} presets={PRESET_COLORS.bg} />
-                        <ColorSelector label="文字" value={textColor} onChange={setTextColor} presets={PRESET_COLORS.text} />
-                        <ColorSelector label="邊框" value={borderColor} onChange={setBorderColor} presets={PRESET_COLORS.border} />
-                        <ColorSelector label="區塊" value={blockColor} onChange={setBlockColor} presets={PRESET_COLORS.block} />
+                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 space-y-3">
+                            <ColorSelector label="背景" value={bgColor} onChange={setBgColor} presets={PRESET_COLORS.bg} />
+                            <ColorSelector label="文字" value={textColor} onChange={setTextColor} presets={PRESET_COLORS.text} />
+                            {(pngStyle === 'wireframe' || pngStyle === 'custom') && 
+                                <ColorSelector label="邊框" value={borderColor} onChange={setBorderColor} presets={PRESET_COLORS.border} />
+                            }
+                            {(pngStyle === 'borderless' || pngStyle === 'custom') && 
+                                <ColorSelector label="區塊" value={blockColor} onChange={setBlockColor} presets={PRESET_COLORS.block} />
+                            }
+                        </div>
                     </SettingsSection>
 
+                    {pngStyle === 'custom' && (
+                        <SettingsSection title="效果">
+                            <label htmlFor="png-show-shadow" className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示陰影</span>
+                                <div className="relative">
+                                    <input type="checkbox" id="png-show-shadow" className="sr-only peer" checked={showShadow} onChange={e => setShowShadow(e.target.checked)} />
+                                    <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                                    <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                                </div>
+                            </label>
+                        </SettingsSection>
+                    )}
+
                     <SettingsSection title="字體">
-                        <select value={font} onChange={e => setFont(e.target.value)} className="w-full p-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition text-gray-800">
+                        <select value={font} onChange={e => setFont(e.target.value)} className="w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100">
                             {FONT_OPTIONS.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                         </select>
-                        <div className="bg-white p-3 rounded-lg border">
-                            <label className="text-sm text-gray-600 flex justify-between items-center mb-2">
+                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
+                            <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
                                 <span>字體縮放</span>
-                                <span className="text-base font-semibold text-gray-800">{Math.round(fontScale * 100)}%</span>
+                                <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{Math.round(fontScale * 100)}%</span>
                             </label>
-                            <input type="range" min="0.5" max="5" step="0.1" value={fontScale} onChange={e => setFontScale(Number(e.target.value))} className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
+                            <input type="range" min="0.5" max="5" step="0.1" value={fontScale} onChange={e => setFontScale(Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
                         </div>
                     </SettingsSection>
 
                         <SettingsSection title="排版">
-                        <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 p-1">
-                            <button onClick={() => setLanguage('zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>中文</button>
-                            <button onClick={() => setLanguage('en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white shadow text-gray-800' : 'text-gray-600'}`}>English</button>
+                        <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                            <button onClick={() => setLanguage('zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>中文</button>
+                            <button onClick={() => setLanguage('en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>English</button>
                         </div>
-                        <div className="bg-white p-3 rounded-lg border">
-                            <label className="text-sm text-gray-600 flex justify-between items-center mb-2">
+                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
+                            <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
                                 <span>水平間距</span>
-                                <span className="text-base font-semibold text-gray-800">{horizontalGap}px</span>
+                                <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{horizontalGap}px</span>
                             </label>
-                            <input type="range" min="0" max="48" value={horizontalGap} onChange={e => setHorizontalGap(Number(e.target.value))} className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
+                            <input type="range" min="0" max="48" value={horizontalGap} onChange={e => setHorizontalGap(Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
                         </div>
-                        <div className="bg-white p-3 rounded-lg border">
-                            <label className="text-sm text-gray-600 flex justify-between items-center mb-2">
+                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
+                            <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
                                 <span>垂直間距</span>
-                                <span className="text-base font-semibold text-gray-800">{verticalGap}px</span>
+                                <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{verticalGap}px</span>
                             </label>
-                            <input type="range" min="0" max="48" value={verticalGap} onChange={e => setVerticalGap(Number(e.target.value))} className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
+                            <input type="range" min="0" max="48" value={verticalGap} onChange={e => setVerticalGap(Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
                         </div>
                     </SettingsSection>
                 </div>
@@ -862,10 +1042,11 @@ interface PngExportContentProps {
     language: 'zh' | 'en';
     horizontalGap: number;
     verticalGap: number;
+    showShadow: boolean;
 }
 
 const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>(({
-    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, fontScale, font, language, horizontalGap, verticalGap
+    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, fontScale, font, language, horizontalGap, verticalGap, showShadow
 }, ref) => {
     
     const monthNames = language === 'zh' ? MONTH_NAMES : MONTH_NAMES_EN;
@@ -889,6 +1070,7 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
             minHeight: '100px',
             display: 'flex',
             flexDirection: 'column',
+            boxShadow: showShadow ? '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)' : 'none',
         };
 
         if (isPlaceholderRow) {
@@ -903,8 +1085,8 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
 
         switch (pngStyle) {
             case 'minimal':
-                styles.backgroundColor = blockColor;
-                styles.border = `1px solid ${borderColor}`;
+                styles.backgroundColor = 'transparent';
+                styles.border = `1px solid transparent`;
                 break;
             case 'borderless':
                 styles.backgroundColor = blockColor;
@@ -914,6 +1096,10 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                 styles.backgroundColor = 'transparent';
                 styles.border = `1px solid ${borderColor}`;
                 break;
+            case 'custom':
+                 styles.backgroundColor = blockColor;
+                 styles.border = `1px solid ${borderColor}`;
+                 break;
         }
         return styles;
     };
@@ -978,6 +1164,13 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
         </div>
     );
 });
+
+const LoginPrompt: React.FC<{ onLoginClick: () => void }> = ({ onLoginClick }) => (
+    <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-3">
+        登入即可雲端同步資料，下次開啟也能繼續編輯！
+        <button onClick={onLoginClick} className="font-semibold text-blue-600 hover:underline ml-2">立即登入</button>
+    </div>
+);
 
 
 const App: React.FC = () => {
@@ -1094,157 +1287,187 @@ const App: React.FC = () => {
         }
     };
     
+    const handleSlotEditorDone = (updatedDay: { date: Date, slots: Slot[] }, pastedDays: string[]) => {
+      const newSchedule = { ...scheduleData };
+      const key = formatDateKey(updatedDay.date);
+      if (updatedDay.slots.length > 0) {
+        newSchedule[key] = updatedDay.slots;
+      } else {
+        delete newSchedule[key];
+      }
+      
+      if(copiedSlots) {
+        pastedDays.forEach(pastedKey => {
+            const pastedSlots = copiedSlots.map(slot => ({...slot, state: 'available'} as Slot));
+            if (pastedSlots.length > 0) {
+                newSchedule[pastedKey] = pastedSlots;
+            } else {
+                delete newSchedule[pastedKey];
+            }
+        });
+      }
+      
+      saveData(newSchedule);
+    };
+
     const handleToggleSlotState = (date: Date, time: string) => {
-        const key = formatDateKey(date);
-        const daySlots = scheduleData[key] || [];
+        const dateKey = formatDateKey(date);
+        const daySlots = scheduleData[dateKey] || [];
         const newSlots = daySlots.map(slot => {
             if (slot.time === time) {
                 return { ...slot, state: slot.state === 'available' ? 'booked' : 'available' } as Slot;
             }
             return slot;
         });
-        saveData({ ...scheduleData, [key]: newSlots });
+        saveData({ ...scheduleData, [dateKey]: newSlots });
     };
 
-    const handleSlotUpdate = ({ date, slots }: { date: Date, slots: Slot[] }, pastedDays: string[]) => {
-        const newSchedule = { ...scheduleData };
-        const key = formatDateKey(date);
-        newSchedule[key] = slots;
-
-        pastedDays.forEach(pasteKey => {
-            newSchedule[pasteKey] = slots.map(s => ({...s, state: 'available'} as Slot));
-        });
-
-        saveData(newSchedule);
+    const handleTitleChange = (newTitle: string) => {
+        saveData(scheduleData, newTitle);
     };
-
-    const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        saveData(scheduleData, e.target.value);
-    }
-
-    const handleLogout = async () => {
-        await auth.signOut();
-    }
+    
+    const loginPromptContent = isFirebaseConfigured && !user ? <LoginPrompt onLoginClick={() => setIsAuthModalOpen(true)} /> : null;
+    
+    const createFooter = (content: React.ReactNode) => (
+        <>
+            {loginPromptContent}
+            {content}
+        </>
+    );
 
     return (
-        <div className="bg-gray-50 min-h-screen">
+        <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
             <header 
-                className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-sm border-b border-gray-200"
+                className="fixed top-0 left-0 right-0 z-40 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700"
                 style={{ paddingTop: 'env(safe-area-inset-top)' }}
             >
-                <div className="max-w-6xl mx-auto grid grid-cols-3 items-center px-4 sm:px-6 lg:px-8 h-16">
-                    <div className="flex justify-start">
-                         <CalendarIcon className="h-7 w-7 text-gray-700" />
-                    </div>
-                    <div className="flex justify-center text-center">
-                         <h1 className="text-base sm:text-lg font-bold text-gray-800 whitespace-nowrap truncate">預約時段匯出工具</h1>
-                    </div>
-                    <div className="flex justify-end">
-                         {isFirebaseConfigured && (
-                            <div>
-                                {user ? (
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm text-gray-600 hidden sm:inline truncate max-w-[120px]">Hi, {user.displayName || user.email}</span>
-                                        <button onClick={handleLogout} className="text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-3 rounded-lg transition-colors flex-shrink-0 h-10 min-w-[40px]">登出</button>
-                                    </div>
-                                ) : (
-                                    <button onClick={() => setIsAuthModalOpen(true)} className="flex items-center justify-center gap-2 text-sm font-semibold bg-blue-600 text-white py-2.5 px-4 rounded-lg hover:bg-blue-700 transition-colors h-10 min-w-[40px]">
-                                        <UserIcon />
-                                        <span className="hidden sm:inline">登入 / 註冊</span>
-                                    </button>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+                   <div className="flex items-center gap-2">
+                     <CalendarIcon className="h-7 w-7 text-blue-600" />
+                     <h1 className="text-lg font-bold text-gray-800 dark:text-gray-100">SlotGrid</h1>
+                   </div>
+                   {isFirebaseConfigured && (
+                       <div>
+                           {user ? (
+                               <button onClick={() => auth.signOut()} className="text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">登出</button>
+                           ) : (
+                               <button onClick={() => setIsAuthModalOpen(true)} className="bg-blue-600 text-white font-bold p-2 rounded-lg hover:bg-blue-700 transition-colors"><UserIcon /></button>
+                           )}
+                       </div>
+                   )}
                 </div>
             </header>
-
+            
             <main 
-                className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8"
-                style={{
-                    paddingTop: 'calc(4rem + 1rem + env(safe-area-inset-top))',
-                    paddingBottom: 'calc(5rem + 1rem + env(safe-area-inset-bottom))'
+                className="flex-grow container mx-auto px-4"
+                style={{ 
+                    paddingTop: `calc(4.5rem + env(safe-area-inset-top))`,
+                    paddingBottom: `calc(8rem + env(safe-area-inset-bottom))`
                 }}
             >
-                <div className="bg-white p-6 rounded-2xl shadow-lg">
-                    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-                        <div className="flex items-center gap-2">
-                             <button onClick={() => handleMonthChange(-1)} className="p-2 rounded-full hover:bg-gray-100 text-gray-600"><ChevronLeftIcon /></button>
-                             <h2 className="text-2xl font-bold text-gray-800 w-32 text-center">{`${currentDate.getFullYear()} ${MONTH_NAMES[currentDate.getMonth()]}`}</h2>
-                             <button onClick={() => handleMonthChange(1)} className="p-2 rounded-full hover:bg-gray-100 text-gray-600"><ChevronRightIcon /></button>
-                        </div>
-                        <div className="flex items-center gap-2 bg-gray-100 p-1.5 rounded-lg">
-                             <input type="text" value={title} onChange={handleTitleChange} className="bg-transparent font-semibold text-gray-700 text-center sm:text-left text-lg px-2 py-1 w-48 focus:ring-2 focus:ring-blue-500 rounded-md outline-none" />
-                             <EditIcon className="text-gray-500"/>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-7 gap-1 text-center font-semibold text-gray-500 text-sm mb-2">
-                        {DAY_NAMES.map(day => <div key={day}>{day}</div>)}
-                    </div>
-
-                    <div className="grid grid-cols-7 gap-1 md:gap-2">
-                        {calendarDays.map((day, index) => {
-                            const dateKey = formatDateKey(day.date);
-                            const daySlots = scheduleData[dateKey] || [];
-                            
-                            return (
-                                <div key={index} onClick={() => handleDayClick(day)}
-                                    className={`flex flex-col transition-all duration-200 border rounded-lg p-1.5
-                                    ${day.isCurrentMonth ? 'cursor-pointer bg-white hover:border-blue-500 hover:shadow-md' : 'bg-gray-50 text-gray-400'}
-                                    ${day.isToday ? 'border-2 border-blue-500' : 'border-gray-200'}
-                                    `}>
-                                    <span className={`font-bold self-start flex-shrink-0 ${day.isToday ? 'text-blue-600' : day.isCurrentMonth ? 'text-gray-800' : ''}`}>{day.date.getDate()}</span>
-                                    {day.isCurrentMonth && daySlots.length > 0 && (
-                                        <div className="mt-1 -mx-1 px-1">
-                                            <ul className="text-[9px] text-left">
-                                                {daySlots.sort((a, b) => a.time.localeCompare(b.time)).map(slot => (
-                                                    <li key={slot.time}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleToggleSlotState(day.date, slot.time);
-                                                        }}
-                                                        className={`py-1 my-px px-1 rounded cursor-pointer transition-colors text-center ${
-                                                            slot.state === 'available'
-                                                                ? 'text-blue-800 bg-blue-100 hover:bg-blue-200'
-                                                                : 'text-gray-500 bg-gray-100 line-through hover:bg-gray-200'
-                                                        }`}
-                                                    >
-                                                        {slot.time}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                <div className="flex items-center justify-between mb-4">
+                    <button onClick={() => handleMonthChange(-1)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><ChevronLeftIcon className="text-gray-600 dark:text-gray-300"/></button>
+                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-100">{`${currentDate.getFullYear()} 年 ${MONTH_NAMES[currentDate.getMonth()]}`}</h2>
+                    <button onClick={() => handleMonthChange(1)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><ChevronRightIcon className="text-gray-600 dark:text-gray-300"/></button>
+                </div>
+                <div className="flex items-center justify-center mb-4">
+                    <div className="inline-flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-2 rounded-lg">
+                       <input 
+                         type="text" 
+                         value={title} 
+                         onChange={(e) => setTitle(e.target.value)} 
+                         onBlur={(e) => handleTitleChange(e.target.value)}
+                         className="bg-transparent text-center font-semibold text-gray-700 dark:text-gray-200 focus:outline-none"
+                       />
+                       <EditIcon className="text-gray-500 dark:text-gray-400"/>
                     </div>
                 </div>
+                <div className="grid grid-cols-7 gap-1 text-center font-semibold text-gray-500 dark:text-gray-400 text-sm mb-2">
+                    {DAY_NAMES.map(day => <div key={day}>{day}</div>)}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                    {calendarDays.map((day) => {
+                        const dateKey = formatDateKey(day.date);
+                        const slots = scheduleData[dateKey] || [];
+                        return (
+                            <div 
+                                key={day.date.toISOString()}
+                                onClick={() => handleDayClick(day)}
+                                className={`border rounded-lg flex flex-col transition-colors ${day.isCurrentMonth ? 'bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/50 cursor-pointer' : 'bg-gray-50 dark:bg-black/20'} ${day.isToday ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'}`}
+                            >
+                                <span className={`self-start p-2 text-sm font-semibold flex-shrink-0 ${!day.isCurrentMonth ? 'text-gray-400 dark:text-gray-600' : 'text-gray-800 dark:text-gray-200'}`}>
+                                    {day.date.getDate()}
+                                </span>
+                                 {slots.length > 0 && day.isCurrentMonth && (
+                                    <div className="px-1 pb-1 mt-auto flex-grow">
+                                      <div className="flex flex-wrap gap-1 justify-start">
+                                        {slots.map(slot => (
+                                            <div 
+                                                key={slot.time}
+                                                onClick={(e) => { e.stopPropagation(); handleToggleSlotState(day.date, slot.time); }}
+                                                className={`text-[9px] font-bold px-1 py-1 rounded-md cursor-pointer transition-colors leading-none 
+                                                  ${slot.state === 'available' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800' : 'bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 line-through'}`}
+                                            >
+                                                {slot.time}
+                                            </div>
+                                        ))}
+                                       </div>
+                                    </div>
+                                 )}
+                            </div>
+                        );
+                    })}
+                </div>
             </main>
-
+            
             <footer 
-                className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm z-40 border-t border-gray-200"
-                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+                className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-white dark:from-gray-800 to-white/0 dark:to-gray-800/0 backdrop-blur-sm pt-8 pb-4"
+                style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
             >
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                     <div className="grid grid-cols-2 gap-4">
-                         <button onClick={() => setIsTextExportOpen(true)} className="w-full bg-white font-semibold text-gray-700 py-3 px-4 rounded-lg shadow-md hover:shadow-lg hover:text-blue-600 transition-all flex items-center justify-center gap-2">
-                            匯出文字
-                        </button>
-                        <button onClick={() => setIsPngExportOpen(true)} className="w-full bg-blue-600 font-semibold text-white py-3 px-4 rounded-lg shadow-md hover:shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
-                            匯出圖片 (PNG)
-                        </button>
+                <div className="container mx-auto px-4">
+                    {loginPromptContent}
+                    <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => setIsTextExportOpen(true)} className="bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 font-bold py-3 px-4 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors shadow-sm">匯出文字</button>
+                        <button onClick={() => setIsPngExportOpen(true)} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors shadow-sm">匯出圖片 (PNG)</button>
                     </div>
                 </div>
             </footer>
             
-            <SlotEditorModal isOpen={isSlotEditorOpen} onClose={() => setIsSlotEditorOpen(false)} selectedDay={selectedDay} scheduleData={scheduleData} calendarDays={calendarDays} onDone={handleSlotUpdate} copiedSlots={copiedSlots} onCopy={setCopiedSlots} />
-            <PngExportModal isOpen={isPngExportOpen} onClose={() => setIsPngExportOpen(false)} scheduleData={scheduleData} title={title} calendarDays={calendarDays} currentDate={currentDate} isLoggedIn={!!user} onAuthRequest={() => setIsAuthModalOpen(true)} />
-            <TextExportModal isOpen={isTextExportOpen} onClose={() => setIsTextExportOpen(false)} scheduleData={scheduleData} title={title} currentDate={currentDate} />
-            {isFirebaseConfigured && <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />}
+            <SlotEditorModal 
+                isOpen={isSlotEditorOpen} 
+                selectedDay={selectedDay} 
+                scheduleData={scheduleData} 
+                calendarDays={calendarDays}
+                onClose={() => setIsSlotEditorOpen(false)}
+                onDone={handleSlotEditorDone}
+                copiedSlots={copiedSlots}
+                onCopy={setCopiedSlots}
+                loginPromptContent={loginPromptContent}
+            />
+            
+            <PngExportModal 
+                isOpen={isPngExportOpen} 
+                onClose={() => setIsPngExportOpen(false)} 
+                scheduleData={scheduleData}
+                title={title}
+                calendarDays={calendarDays}
+                currentDate={currentDate}
+                loginPromptContent={loginPromptContent}
+            />
+
+            <TextExportModal
+                isOpen={isTextExportOpen}
+                onClose={() => setIsTextExportOpen(false)}
+                scheduleData={scheduleData}
+                title={title}
+                currentDate={currentDate}
+                loginPromptContent={loginPromptContent}
+            />
+
+            {isFirebaseConfigured && <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} /> }
+
         </div>
     );
-}
+};
 
 export default App;
