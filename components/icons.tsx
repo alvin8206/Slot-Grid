@@ -88,23 +88,14 @@ export const UserIcon = ({ className, ...props }: React.ComponentProps<'svg'>) =
     </svg>
 );
 
-// FIX: Update icon to accept props and merge classNames.
+// FIX: Replaced the complex and visually inaccurate Google Icon SVG with a clean, optimized, and official-looking version.
 export const GoogleIcon = ({ className, ...props }: React.ComponentProps<'svg'>) => (
-    <svg className={['w-5 h-5', className].filter(Boolean).join(' ')} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
-        <path d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z" fill="#FFC107"/>
-        <path d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z" fill="url(#paint0_linear_2_2)"/>
-        <path d="M24 46c5.9 0 11.2-2.2 15-5.8l-6.4-6.4C30.1 36.3 27.2 37 24 37c-4.9 0-9-3.2-10.7-7.5H6.3v7.3C9.5 42.1 16.3 46 24 46z" fill="#4CAF50"/>
-        <path d="M24 46c5.9 0 11.2-2.2 15-5.8l-6.4-6.4C30.1 36.3 27.2 37 24 37c-4.9 0-9-3.2-10.7-7.5H6.3v7.3C9.5 42.1 16.3 46 24 46z" fill="url(#paint1_linear_2_2)"/>
-        <path d="M13.3 29.5C12.8 28.3 12.5 27 12.5 26s.3-2.3.8-3.5V16H6.3C4.2 20.2 4 22.8 4 26s.2 5.8 2.3 9.6l7-6.1z" fill="#F44336"/>
-        <path d="M13.3 29.5C12.8 28.3 12.5 27 12.5 26s.3-2.3.8-3.5V16H6.3C4.2 20.2 4 22.8 4 26s.2 5.8 2.3 9.6l7-6.1z" fill="url(#paint2_linear_2_2)"/>
-        <path d="M46 24c0-1.3-.2-2.7-.5-4l-6.4 6.4v.1c0 2.2-1.8 4-4 4-2.2 0-4-1.8-4-4s1.8-4 4-4c1.1 0 2.1.4 2.8 1.2l6.4-6.4C38.9 9.3 35.8 8 32 8c-6.2 0-11.4 4.1-13.4 9.6l7 6.1C17.2 20.2 20.4 18 24 18c3.6 0 6.8 2.2 8.3 5.3l-6.5 6.5C25.4 30.3 24.7 30 24 30c-2.2 0-4 1.8-4 4s1.8 4 4 4c2.8 0 5.2-1.8 6.3-4.3H24v-8h22z" fill="#1976D2"/>
-        <path d="M46 24c0-1.3-.2-2.7-.5-4l-6.4 6.4v.1c0 2.2-1.8 4-4 4-2.2 0-4-1.8-4-4s1.8-4 4-4c1.1 0 2.1.4 2.8 1.2l6.4-6.4C38.9 9.3 35.8 8 32 8c-6.2 0-11.4 4.1-13.4 9.6l7 6.1C17.2 20.2 20.4 18 24 18c3.6 0 6.8 2.2 8.3 5.3l-6.5 6.5C25.4 30.3 24.7 30 24 30c-2.2 0-4 1.8-4 4s1.8 4 4 4c2.8 0 5.2-1.8 6.3-4.3H24v-8h22z" fill="url(#paint3_linear_2_2)"/>
-        <defs>
-            <linearGradient id="paint0_linear_2_2" x1="-1.677" y1="21.053" x2="27.01" y2="43.142" gradientUnits="userSpaceOnUse"><stop stopColor="#FF3D00" stopOpacity="0.2"/><stop offset="1" stopColor="#FF3D00" stopOpacity="0"/></linearGradient>
-            <linearGradient id="paint1_linear_2_2" x1="23" y1="31" x2="43" y2="45" gradientUnits="userSpaceOnUse"><stop stopColor="#1B5E20" stopOpacity="0.2"/><stop offset="1" stopColor="#1B5E20" stopOpacity="0"/></linearGradient>
-            <linearGradient id="paint2_linear_2_2" x1="8.666" y1="16.11" x2="13.333" y2="29.5" gradientUnits="userSpaceOnUse"><stop stopColor="#B71C1C" stopOpacity="0.2"/><stop offset="1" stopColor="#B71C1C" stopOpacity="0"/></linearGradient>
-            <linearGradient id="paint3_linear_2_2" x1="45" y1="2" x2="11" y2="46" gradientUnits="userSpaceOnUse"><stop stopColor="#0D47A1" stopOpacity="0.2"/><stop offset="1" stopColor="#0D47A1" stopOpacity="0"/></linearGradient>
-        </defs>
+    <svg className={['w-5 h-5', className].filter(Boolean).join(' ')} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        <path d="M1 1h22v22H1z" fill="none"/>
     </svg>
 );
 
@@ -112,4 +103,11 @@ export const CheckIcon = ({ className, ...props }: React.ComponentProps<'svg'>) 
     <svg xmlns="http://www.w3.org/2000/svg" className={['h-6 w-6', className].filter(Boolean).join(' ')} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
     </svg>
+);
+
+export const SpinnerIcon = ({ className, ...props }: React.ComponentProps<'svg'>) => (
+  <svg className={['animate-spin', className].filter(Boolean).join(' ')} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" {...props}>
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+  </svg>
 );
