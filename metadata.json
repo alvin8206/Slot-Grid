@@ -1,5 +1,5 @@
 {
-  "name": "預約時段匯出工具",
+  "name": "SlotGrid預約時段匯出工具",
   "description": "一個可以讓您快速建立、編輯每月可預約時段，並一鍵匯出成精美PNG圖片的工具，方便您在Instagram等社群媒體上分享。",
   "requestFramePermissions": []
 }
