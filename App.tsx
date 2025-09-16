@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
-import type { ScheduleData, CalendarDay, PngStyle, Slot } from './types';
+import type { ScheduleData, CalendarDay, PngStyle, Slot, PngExportViewMode, TitleAlign } from './types';
 import { MONTH_NAMES, DAY_NAMES, PREDEFINED_SLOTS, MONTH_NAMES_EN, DAY_NAMES_EN } from './constants';
-import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, CloseIcon, TrashIcon, CopyIcon, ClipboardIcon, CalendarIcon, EditIcon, RainbowIcon, UserIcon, GoogleIcon, CheckIcon } from './components/icons';
+import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, CloseIcon, TrashIcon, CopyIcon, ClipboardIcon, CalendarIcon, EditIcon, RainbowIcon, UserIcon, GoogleIcon, CheckIcon, SpinnerIcon } from './components/icons';
 import { auth, db, googleProvider, isFirebaseConfigured } from './firebaseClient';
 import { AdSlot } from './components/AdSlot';
 
@@ -15,7 +15,20 @@ const FONT_OPTIONS = [
     { id: "'Noto Serif TC', serif", name: '思源宋體', urlValue: 'Noto+Serif+TC:wght@300;400;700' },
     { id: "'LXGW WenKai TC', cursive", name: '霞鶩文楷', urlValue: 'LXGW+WenKai+TC:wght@300;400;700' },
     { id: "'M PLUS Rounded 1c', sans-serif", name: 'M+ 圓體', urlValue: 'M+PLUS+Rounded+1c:wght@300;400;700' },
+    { id: "'Ma Shan Zheng', cursive", name: '馬善政毛筆', urlValue: 'Ma+Shan+Zheng' },
+    { id: "'Zen Maru Gothic', sans-serif", name: '日式圓體', urlValue: 'Zen+Maru+Gothic:wght@400;700' },
+    { id: "'Shippori Mincho', serif", name: '日式明體', urlValue: 'Shippori+Mincho:wght@400;700' },
+    { id: "'Long Cang', cursive", name: '龍藏書法體', urlValue: 'Long+Cang' },
+    { id: "'Zhi Mang Xing', cursive", name: '植芒行書', urlValue: 'Zhi+Mang+Xing' },
+    { id: "'Pixelify Sans', sans-serif", name: '像素字體', urlValue: 'Pixelify+Sans:wght@400;700' },
+    { id: "'Yusei Magic', sans-serif", name: '可愛魔法體', urlValue: 'Yusei+Magic' },
+    { id: "'RocknRoll One', sans-serif", name: '搖滾體', urlValue: 'RocknRoll+One' },
     { id: "'Cormorant Garamond', serif", name: 'Cormorant Garamond', urlValue: 'Cormorant+Garamond:wght@400;700' },
+    { id: "'Playfair Display', serif", name: 'Playfair Display', urlValue: 'Playfair+Display:wght@400;700' },
+    { id: "'Lobster', cursive", name: 'Lobster', urlValue: 'Lobster' },
+    { id: "'Pacifico', cursive", name: 'Pacifico', urlValue: 'Pacifico' },
+    { id: "'Bebas Neue', sans-serif", name: 'Bebas Neue', urlValue: 'Bebas+Neue' },
+    { id: "'Space Mono', monospace", name: 'Space Mono', urlValue: 'Space+Mono:wght@400;700' },
     { id: "'Roboto', sans-serif", name: 'Roboto', urlValue: 'Roboto:wght@300;400;700' },
     { id: "'Lato', sans-serif", name: 'Lato', urlValue: 'Lato:wght@300;400;700' },
     { id: "'Montserrat', sans-serif", name: 'Montserrat', urlValue: 'Montserrat:wght@300;400;700' },
@@ -29,6 +42,7 @@ const PRESET_COLORS = {
     text: ['#111827', '#6B7280', '#FFFFFF', '#9CA3AF', '#BE123C', '#1D4ED8'],
     border: ['transparent', '#E5E7EB', '#D1D5DB', '#9CA3AF', '#374151', '#FCA5A5', '#93C5FD'],
     block: ['transparent', '#F9FAFB', '#FFFFFF', '#E5E7EB', '#1F2937', '#FEE2E2', '#DBEAFE'],
+    strikethrough: ['#EF4444', '#FFFFFF', '#9CA3AF', '#6B7280', '#111827'],
 };
 
 // --- Helper Functions ---
@@ -52,22 +66,30 @@ async function getFontEmbedCss(fontId: string): Promise<string> {
     try {
         const response = await fetch(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+                // Google Fonts serves different font formats based on User-Agent. A modern Chrome UA is a safe bet.
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             },
         });
+        if (!response.ok) {
+            throw new Error(`Failed to fetch font CSS: ${response.statusText}`);
+        }
         const cssText = await response.text();
         
-        const fontUrls = cssText.match(/url\(([^)]+)\)/g) || [];
+        const fontUrlMatches = cssText.match(/url\((https:\/\/[^)]+)\)/g) || [];
         
-        const dataUrlPromises = fontUrls.map(async (fontUrl) => {
-            const urlMatch = fontUrl.match(/url\(([^)]+)\)/);
-            if (!urlMatch) return null;
+        const dataUrlPromises = fontUrlMatches.map(async (fontUrlMatch) => {
+            const urlMatch = fontUrlMatch.match(/url\(([^)]+)\)/);
+            if (!urlMatch) return { original: fontUrlMatch, replacement: fontUrlMatch };
             
             const realUrl = urlMatch[1].replace(/['"]/g, '');
             const fontResponse = await fetch(realUrl);
+            if (!fontResponse.ok) {
+              console.warn(`Failed to fetch font file: ${realUrl}`);
+              return { original: fontUrlMatch, replacement: fontUrlMatch };
+            }
             const blob = await fontResponse.blob();
             
-            return new Promise<string>((resolve, reject) => {
+            const dataUrl = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     resolve(reader.result as string);
@@ -75,16 +97,15 @@ async function getFontEmbedCss(fontId: string): Promise<string> {
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
             });
+            return { original: fontUrlMatch, replacement: `url(${dataUrl})` };
         });
 
-        const dataUrls = await Promise.all(dataUrlPromises);
+        const replacements = await Promise.all(dataUrlPromises);
         
         let finalCssText = cssText;
-        dataUrls.forEach((dataUrl, index) => {
-            if (dataUrl && fontUrls[index]) {
-                finalCssText = finalCssText.replace(fontUrls[index], `url(${dataUrl})`);
-            }
-        });
+        for (const { original, replacement } of replacements) {
+            finalCssText = finalCssText.replace(original, replacement);
+        }
         
         return finalCssText;
     } catch (error) {
@@ -292,6 +313,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
   const [copySuccess, setCopySuccess] = useState(false);
   const [multiPasteDates, setMultiPasteDates] = useState<Set<string>>(new Set());
   const [isMultiPasteExpanded, setIsMultiPasteExpanded] = useState(false);
+  const [lastSelectedDateKey, setLastSelectedDateKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedDay) {
@@ -301,6 +323,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
       setCopySuccess(false);
       setMultiPasteDates(new Set());
       setIsMultiPasteExpanded(false);
+      setLastSelectedDateKey(null);
     }
   }, [selectedDay, scheduleData, isOpen]);
 
@@ -351,15 +374,41 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
     }
   };
 
-  const toggleMultiPasteDate = (date: Date) => {
+  const toggleMultiPasteDate = (date: Date, event?: React.MouseEvent) => {
     const key = formatDateKey(date);
     const newSet = new Set(multiPasteDates);
-    if (newSet.has(key)) {
-        newSet.delete(key);
+    
+    // Shift+Click range selection logic
+    if (event?.shiftKey && lastSelectedDateKey && lastSelectedDateKey !== key) {
+        const allKeysInMonth = calendarDays
+            .filter(d => d.isCurrentMonth)
+            .map(d => formatDateKey(d.date));
+        
+        const startIndex = allKeysInMonth.indexOf(lastSelectedDateKey);
+        const endIndex = allKeysInMonth.indexOf(key);
+
+        if (startIndex !== -1 && endIndex !== -1) {
+            const [start, end] = [startIndex, endIndex].sort((a,b) => a - b);
+            for (let i = start; i <= end; i++) {
+                const dayKey = allKeysInMonth[i];
+                const isTargetDay = selectedDay && formatDateKey(selectedDay) === dayKey;
+                if(!isTargetDay) {
+                   newSet.add(dayKey);
+                }
+            }
+        }
+        setMultiPasteDates(newSet);
+        setLastSelectedDateKey(key);
     } else {
-        newSet.add(key);
+        // Normal toggle logic
+        if (newSet.has(key)) {
+            newSet.delete(key);
+        } else {
+            newSet.add(key);
+        }
+        setMultiPasteDates(newSet);
+        setLastSelectedDateKey(key);
     }
-    setMultiPasteDates(newSet);
   };
 
   const handlePasteToAll = () => {
@@ -457,12 +506,13 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
                         const isSelected = multiPasteDates.has(key);
                         const isTargetDay = selectedDay && formatDateKey(selectedDay) === key;
                         return (
-                            <div key={index} onClick={() => isCurrentMonth && !isTargetDay && toggleMultiPasteDate(date)} 
-                                className={`aspect-square border rounded-lg p-1 text-xs transition-all flex items-center justify-center 
+                            <div key={index} onClick={(e) => isCurrentMonth && !isTargetDay && toggleMultiPasteDate(date, e)} 
+                                className={`relative aspect-square border rounded-lg p-1 text-xs transition-all flex items-center justify-center 
                                 ${!isCurrentMonth ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500' : (isTargetDay ? 'bg-gray-300 dark:bg-gray-600' : 'cursor-pointer')}
                                 ${isSelected ? 'bg-blue-600 border-blue-700 font-bold text-white' : (isCurrentMonth && !isTargetDay ? 'bg-white dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-blue-600 text-gray-800 dark:text-gray-200' : '')}
                                 `}>
-                                {date.getDate()}
+                                {isSelected && <CheckIcon className="absolute top-0.5 right-0.5 h-3 w-3 text-white" />}
+                                <span>{date.getDate()}</span>
                             </div>
                         );
                     })}
@@ -554,8 +604,8 @@ const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, sche
         sortedDates.forEach(dateKey => {
             const date = new Date(dateKey);
             const year = date.getFullYear();
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString();
+            const day = date.getDate().toString();
             const dayOfWeek = language === 'zh' ? DAY_NAMES[date.getDay()] : DAY_NAMES_EN[date.getDay()];
             
             let slotsToDisplay: string[] = [];
@@ -712,12 +762,19 @@ interface PngExportModalProps {
     loginPromptContent?: React.ReactNode;
 }
 
-const SettingsSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <div>
+const SettingsSection: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className }) => (
+    <div className={className}>
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{title}</h3>
         <div className="space-y-3">{children}</div>
     </div>
 );
+
+const SettingsCard: React.FC<React.PropsWithChildren<{ className?: string }>> = ({ children, className }) => (
+    <div className={`bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 ${className}`}>
+        {children}
+    </div>
+);
+
 
 const ColorSelector: React.FC<{ label: string; value: string; onChange: (color: string) => void; presets: string[]; }> = ({ label, value, onChange, presets }) => {
     const isCustom = !presets.includes(value);
@@ -746,12 +803,71 @@ const ColorSelector: React.FC<{ label: string; value: string; onChange: (color: 
     );
 };
 
+type FontStatus = 'idle' | 'loading' | 'loaded';
+type PngSettingsTab = 'content' | 'style' | 'layout';
+
+const FontCard: React.FC<{
+  fontOption: typeof FONT_OPTIONS[0];
+  isSelected: boolean;
+  status: FontStatus;
+  onSelect: () => void;
+  preloadFont: () => void;
+}> = ({ fontOption, isSelected, status, onSelect, preloadFont }) => {
+  const cardRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (status !== 'idle' || !cardRef.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          preloadFont(); // Pre-load when visible
+          observer.unobserve(entry.target);
+        }
+      },
+      {
+        root: null,
+        rootMargin: '0px 200px 0px 0px', // Preload 200px ahead of the scroll direction
+        threshold: 0.01,
+      }
+    );
+
+    observer.observe(cardRef.current);
+
+    return () => observer.disconnect();
+  }, [status, preloadFont]);
+
+  return (
+    <button
+      ref={cardRef}
+      type="button"
+      onClick={onSelect}
+      disabled={status === 'loading'}
+      className={`relative flex-shrink-0 w-28 h-16 flex items-center justify-center p-2 border-2 rounded-lg transition-all duration-200 text-center ${isSelected ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/50' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:border-blue-400'}`}
+      style={{ fontFamily: status === 'loaded' ? fontOption.id : 'sans-serif' }}
+    >
+      {status === 'loading' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/70 dark:bg-gray-700/70 rounded-md">
+          <SpinnerIcon className="w-6 h-6 text-blue-500" />
+        </div>
+      )}
+      <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{fontOption.name}</span>
+    </button>
+  );
+};
+
+
 const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, scheduleData, title, calendarDays, currentDate, loginPromptContent }) => {
     const exportRef = useRef<HTMLDivElement>(null);
     const previewContainerRef = useRef<HTMLDivElement>(null);
     const scaleWrapperRef = useRef<HTMLDivElement>(null);
     const finalExportRef = useRef<HTMLDivElement>(null);
     
+    // UI State
+    const [activeTab, setActiveTab] = useState<PngSettingsTab>('content');
+
+    // Settings State
+    const [exportViewMode, setExportViewMode] = useState<PngExportViewMode>('month');
     const [pngStyle, setPngStyle] = useState<PngStyle>('minimal');
     const [bgColor, setBgColor] = useState('transparent');
     const [textColor, setTextColor] = useState('#111827');
@@ -759,19 +875,23 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
     const [blockColor, setBlockColor] = useState('transparent');
     const [showShadow, setShowShadow] = useState(false);
     const [showTitle, setShowTitle] = useState(true);
-    const [showYearMonth, setShowYearMonth] = useState(true);
     const [showBookedSlots, setShowBookedSlots] = useState(true);
-    const [bookedStyle, setBookedStyle] = useState<'red-strikethrough' | 'fade'>('red-strikethrough');
+    const [bookedStyle, setBookedStyle] = useState<'strikethrough' | 'fade'>('strikethrough');
+    const [strikethroughColor, setStrikethroughColor] = useState('#EF4444');
+    const [strikethroughThickness, setStrikethroughThickness] = useState<'thin' | 'thick'>('thin');
     const [fontScale, setFontScale] = useState(1);
     const [font, setFont] = useState(FONT_OPTIONS[0].id);
     const [language, setLanguage] = useState<'zh' | 'en'>('zh');
     const [horizontalGap, setHorizontalGap] = useState(8);
     const [verticalGap, setVerticalGap] = useState(8);
     const [localTitle, setLocalTitle] = useState(title);
+    const [titleAlign, setTitleAlign] = useState<TitleAlign>('center');
     
+    // Export Flow State
     const [exportStage, setExportStage] = useState<'configuring' | 'generating' | 'completed'>('configuring');
     const [generatedPngDataUrl, setGeneratedPngDataUrl] = useState<string | null>(null);
     const [loadingMessage, setLoadingMessage] = useState('');
+    const [fontStatuses, setFontStatuses] = useState<Record<string, FontStatus>>({});
 
     const LOADING_MESSAGES = useMemo(() => [
         '正在準備您的月曆...',
@@ -784,6 +904,8 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
         if (isOpen) {
             setExportStage('configuring');
             setGeneratedPngDataUrl(null);
+            setActiveTab('content');
+            setExportViewMode('month');
         }
     }, [isOpen]);
 
@@ -854,41 +976,86 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
         };
     }, [isOpen]);
     
-    const propsForContent = useMemo(() => ({ scheduleData, title: localTitle, calendarDays, currentDate, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, fontScale, font, language, horizontalGap, verticalGap, showShadow }), [scheduleData, localTitle, calendarDays, currentDate, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, fontScale, font, language, horizontalGap, verticalGap, showShadow]);
+    const propsForContent = useMemo(() => ({ scheduleData, title: localTitle, calendarDays, currentDate, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth: false, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign }), [scheduleData, localTitle, calendarDays, currentDate, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign]);
+
+    const loadFont = useCallback(async (fontOption: typeof FONT_OPTIONS[0]) => {
+        const { id, urlValue, name } = fontOption;
+        
+        if (fontStatuses[id] === 'loading' || fontStatuses[id] === 'loaded') {
+            return; // Already loading or loaded
+        }
+        
+        setFontStatuses(prev => ({ ...prev, [id]: 'loading' }));
+        
+        try {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap`;
+            document.head.appendChild(link);
+            
+            // Use a cleaned-up font family name for document.fonts.load for better reliability.
+            const fontFamily = id.split(',')[0].trim().replace(/['"]/g, '');
+            await document.fonts.load(`1em "${fontFamily}"`);
+            
+            setFontStatuses(prev => ({ ...prev, [id]: 'loaded' }));
+        } catch (error) {
+            console.error(`Failed to load font: ${name}`, error);
+            setFontStatuses(prev => ({ ...prev, [id]: 'idle' })); // Reset on failure
+            throw error; // Propagate error to the caller
+        }
+    }, [fontStatuses]);
+
+    // Pre-load the currently selected font when the modal opens, if it's not already loaded.
+    useEffect(() => {
+        if (isOpen) {
+            const selectedFontOption = FONT_OPTIONS.find(f => f.id === font);
+            if (selectedFontOption && (!fontStatuses[font] || fontStatuses[font] === 'idle')) {
+                loadFont(selectedFontOption).catch(e => console.error("Failed to preload selected font:", e));
+            }
+        }
+    }, [isOpen, font, fontStatuses, loadFont]);
+
 
     const handleStartExport = useCallback(async () => {
         setExportStage('generating');
 
-        // Wait for next render cycle to ensure finalExportRef is available
-        setTimeout(async () => {
-            try {
-                const exportNode = finalExportRef.current;
-                if (!exportNode) {
-                    throw new Error("Export node is not available for capture.");
-                }
-
-                const fontEmbedCSS = await getFontEmbedCss(font);
-                const imagePromise = htmlToImage.toPng(exportNode, {
-                    quality: 1,
-                    pixelRatio: 2,
-                    backgroundColor: bgColor,
-                    fontEmbedCSS: fontEmbedCSS,
-                });
-                
-                const timerPromise = new Promise(resolve => setTimeout(resolve, 8000));
-
-                const [dataUrl] = await Promise.all([imagePromise, timerPromise]);
-
-                setGeneratedPngDataUrl(dataUrl as string);
-                setExportStage('completed');
-
-            } catch (error) {
-                console.error('Oops, something went wrong during PNG export!', error);
-                alert('匯出圖片時發生錯誤！');
-                setExportStage('configuring');
+        const exportNode = finalExportRef.current;
+        if (!exportNode) {
+            alert('無法匯出：預覽元件尚未準備好。');
+            setExportStage('configuring');
+            return;
+        }
+    
+        const styleElement = document.createElement('style');
+    
+        try {
+            setLoadingMessage('正在嵌入漂亮的字體...');
+            const fontEmbedCSS = await getFontEmbedCss(font);
+            
+            styleElement.innerHTML = fontEmbedCSS;
+            exportNode.appendChild(styleElement);
+    
+            setLoadingMessage('正在繪製高解析度圖片...');
+            const dataUrl = await htmlToImage.toPng(exportNode, {
+                quality: 1,
+                pixelRatio: 2,
+                backgroundColor: bgColor,
+            });
+    
+            setGeneratedPngDataUrl(dataUrl);
+            setExportStage('completed');
+    
+        } catch (error) {
+            console.error('Oops, something went wrong during PNG export!', error);
+            alert('匯出圖片時發生錯誤！');
+            setExportStage('configuring');
+        } finally {
+            // Important: Clean up the injected style tag afterwards
+            if (exportNode.contains(styleElement)) {
+                exportNode.removeChild(styleElement);
             }
-        }, 100); // A small delay to ensure DOM update
-    }, [font, bgColor, currentDate, localTitle]);
+        }
+    }, [font, bgColor]);
 
     const handleDownloadFile = useCallback(() => {
         if (!generatedPngDataUrl) return;
@@ -923,17 +1090,36 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
             setBgColor('transparent');
             setBorderColor('transparent');
             setBlockColor('transparent');
+            setStrikethroughColor('#EF4444');
         } else if (style === 'borderless') {
             setBgColor('#FFFFFF');
             setBlockColor('#F9FAFB'); // light gray
             setBorderColor('transparent');
+            setStrikethroughColor('#EF4444');
         } else if (style === 'wireframe') {
             setBgColor('#FFFFFF');
             setBorderColor('#374151'); // dark gray
             setBlockColor('transparent');
+            setStrikethroughColor('#EF4444');
         }
         // For 'custom', we don't change any colors, letting the user's choices persist.
     };
+
+    const handleFontSelect = useCallback(async (fontOption: typeof FONT_OPTIONS[0]) => {
+        if (font === fontOption.id) return;
+        
+        const status = fontStatuses[fontOption.id] || 'idle';
+        if (status === 'loading') return;
+
+        try {
+            if (status !== 'loaded') {
+                await loadFont(fontOption);
+            }
+            setFont(fontOption.id);
+        } catch (error) {
+            alert(`無法載入字體：${fontOption.name}。請稍後再試。`);
+        }
+    }, [font, fontStatuses, loadFont]);
     
     if (!isOpen) return null;
 
@@ -955,12 +1141,36 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
             )}
         </>
     );
+    
+    const TabButton: React.FC<{ tab: PngSettingsTab, label: string }> = ({ tab, label }) => (
+      <button 
+        onClick={() => setActiveTab(tab)} 
+        className={`py-2 px-4 rounded-lg transition-all text-sm font-medium ${activeTab === tab ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>
+        {label}
+      </button>
+    );
+    
+    const ViewModeButton: React.FC<{ mode: PngExportViewMode, label: string }> = ({ mode, label }) => (
+      <button 
+        onClick={() => setExportViewMode(mode)} 
+        className={`py-2 rounded-lg transition-all text-sm font-medium ${exportViewMode === mode ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>
+        {label}
+      </button>
+    );
+    
+    const AlignButton: React.FC<{ align: TitleAlign, label: string }> = ({ align, label }) => (
+        <button 
+          onClick={() => setTitleAlign(align)} 
+          className={`py-2 rounded-lg transition-all text-sm font-medium ${titleAlign === align ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>
+          {label}
+        </button>
+      );
 
     return (
         <Modal isOpen={isOpen} onClose={exportStage === 'generating' ? () => {} : onClose} headerContent={header} footerContent={footer} modalClassName="xl:max-w-4xl">
             {/* The off-screen element for high-quality export */}
             {exportStage === 'generating' && (
-                <div style={{ position: 'fixed', top: '0', left: '-9999px' }}>
+                <div style={{ position: 'fixed', top: '0', left: '-9999px', pointerEvents: 'none', opacity: 0 }}>
                     <PngExportContent ref={finalExportRef} {...propsForContent} />
                 </div>
             )}
@@ -1023,115 +1233,185 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                         </div>
                     </div>
                 </div>
-                <div className="w-full lg:w-1/2 space-y-6">
-                    <SettingsSection title="標題">
-                        <input type="text" value={localTitle} onChange={e => setLocalTitle(e.target.value)} className="w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100"/>
-                    </SettingsSection>
-
-                    <SettingsSection title="內容顯示">
-                        <label htmlFor="png-show-title" className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示主標題</span>
-                            <div className="relative">
-                                <input type="checkbox" id="png-show-title" className="sr-only peer" checked={showTitle} onChange={e => setShowTitle(e.target.checked)} />
-                                <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                                <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                            </div>
-                        </label>
-                        <label htmlFor="png-show-year-month" className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示年月份</span>
-                            <div className="relative">
-                                <input type="checkbox" id="png-show-year-month" className="sr-only peer" checked={showYearMonth} onChange={e => setShowYearMonth(e.target.checked)} />
-                                <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                                <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                            </div>
-                        </label>
-                        <label htmlFor="png-show-booked" className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示已預約時段</span>
-                            <div className="relative">
-                                <input type="checkbox" id="png-show-booked" className="sr-only peer" checked={showBookedSlots} onChange={e => setShowBookedSlots(e.target.checked)} />
-                                <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                                <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                            </div>
-                        </label>
-                        {showBookedSlots && (
-                            <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
-                                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
-                                <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                                    <button onClick={() => setBookedStyle('red-strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'red-strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>畫紅色橫線</button>
-                                    <button onClick={() => setBookedStyle('fade')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'fade' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>降低透明度</button>
-                                </div>
-                            </div>
-                        )}
-                    </SettingsSection>
-                    
-                    <SettingsSection title="整體樣式">
-                        <div className="grid grid-cols-4 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                            <button onClick={() => handleStyleChange('minimal')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'minimal' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>簡約</button>
-                            <button onClick={() => handleStyleChange('borderless')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'borderless' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>區塊</button>
-                            <button onClick={() => handleStyleChange('wireframe')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'wireframe' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>線框</button>
-                            <button onClick={() => handleStyleChange('custom')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'custom' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>自訂</button>
+                <div className="w-full lg:w-1/2 space-y-4">
+                  <div className="p-1">
+                      <SettingsSection title="顯示範圍">
+                        <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                            <ViewModeButton mode="month" label="完整月曆"/>
+                            <ViewModeButton mode="remaining" label="剩餘月份"/>
+                            <ViewModeButton mode="list" label="清單模式"/>
                         </div>
-                    </SettingsSection>
-                    
-                    <SettingsSection title="顏色">
-                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 space-y-3">
-                            <ColorSelector label="背景" value={bgColor} onChange={setBgColor} presets={PRESET_COLORS.bg} />
-                            <ColorSelector label="文字" value={textColor} onChange={setTextColor} presets={PRESET_COLORS.text} />
-                            {(pngStyle === 'wireframe' || pngStyle === 'custom') && 
-                                <ColorSelector label="邊框" value={borderColor} onChange={setBorderColor} presets={PRESET_COLORS.border} />
-                            }
-                            {(pngStyle === 'borderless' || pngStyle === 'custom') && 
-                                <ColorSelector label="區塊" value={blockColor} onChange={setBlockColor} presets={PRESET_COLORS.block} />
-                            }
-                        </div>
-                    </SettingsSection>
+                      </SettingsSection>
+                  </div>
 
-                    {pngStyle === 'custom' && (
-                        <SettingsSection title="效果">
-                            <label htmlFor="png-show-shadow" className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示陰影</span>
+                  <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                      <TabButton tab="content" label="內容" />
+                      <TabButton tab="style" label="樣式" />
+                      <TabButton tab="layout" label="排版" />
+                  </div>
+
+                  <div className="space-y-4">
+                    {activeTab === 'content' && (
+                      <>
+                        <SettingsCard>
+                          <SettingsSection title="標題">
+                            <input type="text" value={localTitle} onChange={e => setLocalTitle(e.target.value)} className="w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100"/>
+                          </SettingsSection>
+                        </SettingsCard>
+                        <SettingsCard>
+                          <SettingsSection title="顯示項目">
+                            <label htmlFor="png-show-title" className="flex items-center justify-between cursor-pointer">
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示主標題</span>
                                 <div className="relative">
-                                    <input type="checkbox" id="png-show-shadow" className="sr-only peer" checked={showShadow} onChange={e => setShowShadow(e.target.checked)} />
+                                    <input type="checkbox" id="png-show-title" className="sr-only peer" checked={showTitle} onChange={e => setShowTitle(e.target.checked)} />
                                     <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
                                     <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
                                 </div>
                             </label>
-                        </SettingsSection>
+                            <label htmlFor="png-show-booked" className="flex items-center justify-between cursor-pointer">
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示已預約時段</span>
+                                <div className="relative">
+                                    <input type="checkbox" id="png-show-booked" className="sr-only peer" checked={showBookedSlots} onChange={e => setShowBookedSlots(e.target.checked)} />
+                                    <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                                    <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                                </div>
+                            </label>
+                            {showBookedSlots && (
+                                <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
+                                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
+                                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                        <button onClick={() => setBookedStyle('strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>畫橫線</button>
+                                        <button onClick={() => setBookedStyle('fade')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'fade' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>降低透明度</button>
+                                    </div>
+                                </div>
+                            )}
+                          </SettingsSection>
+                        </SettingsCard>
+                        <SettingsCard>
+                            <SettingsSection title="語言">
+                                <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                    <button onClick={() => setLanguage('zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>中文</button>
+                                    <button onClick={() => setLanguage('en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>English</button>
+                                </div>
+                            </SettingsSection>
+                        </SettingsCard>
+                      </>
                     )}
-
-                    <SettingsSection title="字體">
-                        <select value={font} onChange={e => setFont(e.target.value)} className="w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100">
-                            {FONT_OPTIONS.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                        </select>
-                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                            <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
-                                <span>字體縮放</span>
-                                <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{Math.round(fontScale * 100)}%</span>
-                            </label>
-                            <input type="range" min="0.5" max="5" step="0.1" value={fontScale} onChange={e => setFontScale(Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
-                        </div>
-                    </SettingsSection>
-
-                        <SettingsSection title="排版">
-                        <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                            <button onClick={() => setLanguage('zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>中文</button>
-                            <button onClick={() => setLanguage('en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>English</button>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                            <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
-                                <span>水平間距</span>
-                                <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{horizontalGap}px</span>
-                            </label>
-                            <input type="range" min="0" max="48" value={horizontalGap} onChange={e => setHorizontalGap(Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                            <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
-                                <span>垂直間距</span>
-                                <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{verticalGap}px</span>
-                            </label>
-                            <input type="range" min="0" max="48" value={verticalGap} onChange={e => setVerticalGap(Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
-                        </div>
-                    </SettingsSection>
+                    {activeTab === 'style' && (
+                      <>
+                        {exportViewMode !== 'list' &&
+                          <SettingsCard>
+                            <SettingsSection title="整體風格">
+                                <div className="grid grid-cols-4 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                    <button onClick={() => handleStyleChange('minimal')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'minimal' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>簡約</button>
+                                    <button onClick={() => handleStyleChange('borderless')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'borderless' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>區塊</button>
+                                    <button onClick={() => handleStyleChange('wireframe')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'wireframe' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>線框</button>
+                                    <button onClick={() => handleStyleChange('custom')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'custom' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>自訂</button>
+                                </div>
+                            </SettingsSection>
+                          </SettingsCard>
+                        }
+                        <SettingsCard>
+                          <SettingsSection title="顏色">
+                            <div className="space-y-3">
+                              <ColorSelector label="背景" value={bgColor} onChange={setBgColor} presets={PRESET_COLORS.bg} />
+                              <ColorSelector label="文字" value={textColor} onChange={setTextColor} presets={PRESET_COLORS.text} />
+                              {(pngStyle === 'wireframe' || pngStyle === 'custom') && 
+                                  <ColorSelector label="邊框" value={borderColor} onChange={setBorderColor} presets={PRESET_COLORS.border} />
+                              }
+                              {(pngStyle === 'borderless' || pngStyle === 'custom') && 
+                                  <ColorSelector label="區塊" value={blockColor} onChange={setBlockColor} presets={PRESET_COLORS.block} />
+                              }
+                              {showBookedSlots && bookedStyle === 'strikethrough' && (
+                                <>
+                                  <ColorSelector label="橫線" value={strikethroughColor} onChange={setStrikethroughColor} presets={PRESET_COLORS.strikethrough} />
+                                  <div className="pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
+                                      <span className="text-sm text-gray-600 dark:text-gray-400">橫線粗細</span>
+                                      <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1 mt-2">
+                                          <button onClick={() => setStrikethroughThickness('thin')} className={`py-2 rounded-lg transition-all text-sm font-medium ${strikethroughThickness === 'thin' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>細</button>
+                                          <button onClick={() => setStrikethroughThickness('thick')} className={`py-2 rounded-lg transition-all text-sm font-medium ${strikethroughThickness === 'thick' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>粗</button>
+                                      </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </SettingsSection>
+                        </SettingsCard>
+                        {pngStyle === 'custom' && (
+                            <SettingsCard>
+                                <SettingsSection title="效果">
+                                    <label htmlFor="png-show-shadow" className="flex items-center justify-between cursor-pointer">
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示陰影</span>
+                                        <div className="relative">
+                                            <input type="checkbox" id="png-show-shadow" className="sr-only peer" checked={showShadow} onChange={e => setShowShadow(e.target.checked)} />
+                                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                                        </div>
+                                    </label>
+                                </SettingsSection>
+                            </SettingsCard>
+                        )}
+                        <SettingsSection title="字體">
+                            <div className="relative">
+                                <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                                    {FONT_OPTIONS.map(f => (
+                                        <FontCard
+                                            key={f.id}
+                                            fontOption={f}
+                                            isSelected={font === f.id}
+                                            status={fontStatuses[f.id] || 'idle'}
+                                            onSelect={() => handleFontSelect(f)}
+                                            preloadFont={() => loadFont(f)}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        </SettingsSection>
+                      </>
+                    )}
+                    {activeTab === 'layout' && (
+                      <>
+                        <SettingsCard>
+                           <SettingsSection title="主標題對齊">
+                                <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                    <AlignButton align="left" label="靠左"/>
+                                    <AlignButton align="center" label="置中"/>
+                                    <AlignButton align="right" label="靠右"/>
+                                </div>
+                           </SettingsSection>
+                        </SettingsCard>
+                        <SettingsCard>
+                           <SettingsSection title="字體縮放">
+                                <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
+                                    <span>縮放比例</span>
+                                    <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{Math.round(fontScale * 100)}%</span>
+                                </label>
+                                <input type="range" min="0.5" max="5" step="0.1" value={fontScale} onChange={e => setFontScale(Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
+                           </SettingsSection>
+                        </SettingsCard>
+                        {exportViewMode !== 'list' &&
+                          <SettingsCard>
+                             <SettingsSection title="間距">
+                                  <div>
+                                     <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
+                                         <span>水平間距</span>
+                                         <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{horizontalGap}px</span>
+                                     </label>
+                                     <input type="range" min="0" max="48" value={horizontalGap} onChange={e => setHorizontalGap(Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
+                                  </div>
+                                  <div>
+                                     <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
+                                         <span>垂直間距</span>
+                                         <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{verticalGap}px</span>
+                                     </label>
+                                     <input type="range" min="0" max="48" value={verticalGap} onChange={e => setVerticalGap(Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
+                                  </div>
+                             </SettingsSection>
+                          </SettingsCard>
+                        }
+                      </>
+                    )}
+                  </div>
                 </div>
             </div>
         </Modal>
@@ -1151,17 +1431,21 @@ interface PngExportContentProps {
     showTitle: boolean;
     showYearMonth: boolean;
     showBookedSlots: boolean;
-    bookedStyle: 'red-strikethrough' | 'fade';
+    bookedStyle: 'strikethrough' | 'fade';
+    strikethroughColor: string;
+    strikethroughThickness: 'thin' | 'thick';
     fontScale: number;
     font: string;
     language: 'zh' | 'en';
     horizontalGap: number;
     verticalGap: number;
     showShadow: boolean;
+    exportViewMode: PngExportViewMode;
+    titleAlign: TitleAlign;
 }
 
 const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>(({
-    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, fontScale, font, language, horizontalGap, verticalGap, showShadow
+    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showYearMonth, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign
 }, ref) => {
     
     const monthNames = language === 'zh' ? MONTH_NAMES : MONTH_NAMES_EN;
@@ -1219,63 +1503,131 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
         return styles;
     };
 
+    // --- Logic for different view modes ---
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const filteredCalendarDays = useMemo(() => {
+      if (exportViewMode === 'remaining') {
+        const todayIndex = calendarDays.findIndex(d => d.date.getTime() === today.getTime());
+        if (todayIndex === -1) return calendarDays; // Today is not in this month view
+        
+        const startOfWeekIndex = todayIndex - calendarDays[todayIndex].date.getDay();
+        return calendarDays.slice(startOfWeekIndex);
+      }
+      return calendarDays;
+    }, [calendarDays, exportViewMode, today]);
+
     const weeks = [];
-    for (let i = 0; i < calendarDays.length; i += 7) {
-        weeks.push(calendarDays.slice(i, i + 7));
+    for (let i = 0; i < filteredCalendarDays.length; i += 7) {
+        weeks.push(filteredCalendarDays.slice(i, i + 7));
     }
+    
+    const listData = useMemo(() => {
+        if (exportViewMode !== 'list') return [];
+        
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+        
+        return Object.keys(scheduleData)
+            .map(key => new Date(key))
+            .filter(date => 
+                date.getFullYear() === currentYear &&
+                date.getMonth() === currentMonth &&
+                date.getTime() >= today.getTime() &&
+                scheduleData[formatDateKey(date)]?.length > 0
+            )
+            .sort((a, b) => a.getTime() - b.getTime());
+    }, [scheduleData, currentDate, today, exportViewMode]);
+    
+    const effectiveTitle = (showTitle && exportViewMode !== 'list') ? title : (showTitle && exportViewMode === 'list' ? title : '');
 
 
     return (
         <div ref={ref} style={containerStyles}>
-            {showTitle && <h1 className="text-3xl font-bold text-center mb-4" style={{ color: textColor }}>{title}</h1>}
+            {showTitle && <h1 className="text-3xl font-bold mb-4" style={{ color: textColor, marginBottom: showYearMonth ? '1rem' : '3rem', textAlign: titleAlign }}>{title}</h1>}
             {showYearMonth && <h2 className="text-xl font-semibold text-center mb-6" style={{ color: textColor }}>{`${currentDate.getFullYear()} ${monthNames[currentDate.getMonth()]}`}</h2>}
             
-            <div className="grid grid-cols-7" style={{ gap: `${verticalGap}px ${horizontalGap}px` }}>
-                {dayNames.map(dayName => (
-                    <div key={dayName} className="font-bold text-center pb-2" style={{ color: textColor }}>
-                        {dayName}
-                    </div>
-                ))}
-                
-                {weeks.map((week, weekIndex) => {
-                    const isPlaceholderRow = week.every(day => !day.isCurrentMonth);
-                    return week.map((day, dayIndex) => {
-                        const dateKey = formatDateKey(day.date);
+            {exportViewMode === 'list' ? (
+                <div className="space-y-4">
+                    {listData.map(date => {
+                        const dateKey = formatDateKey(date);
                         const slots = scheduleData[dateKey] || [];
                         const finalSlots = showBookedSlots ? slots : slots.filter(s => s.state === 'available');
-                        const hasSlots = day.isCurrentMonth && finalSlots.length > 0;
+
+                        if (finalSlots.length === 0) return null;
 
                         return (
-                            <div key={`${weekIndex}-${dayIndex}`} style={getBlockStyles(day.isCurrentMonth, isPlaceholderRow)}>
-                                <p className="font-bold" style={{ color: day.isCurrentMonth ? textColor : 'transparent' }}>
-                                    {day.date.getDate()}
-                                </p>
-                                {hasSlots && (
-                                    <ul className="space-y-1 mt-1">
-                                        {finalSlots.map(slot => {
-                                            const liStyle: React.CSSProperties = { color: textColor };
-                                            if (slot.state === 'booked') {
-                                                if (bookedStyle === 'fade') {
-                                                    liStyle.opacity = 0.3;
-                                                } else if (bookedStyle === 'red-strikethrough') {
-                                                    liStyle.textDecoration = 'line-through';
-                                                    liStyle.textDecorationColor = '#EF4444';
-                                                    liStyle.textDecorationThickness = '1.5px';
-                                                }
+                            <div key={dateKey} className="grid grid-cols-3 gap-4 items-start pb-4 border-b" style={{ borderColor: borderColor === 'transparent' ? '#e5e7eb' : borderColor }}>
+                                <div className="col-span-1 font-bold">
+                                    {`${date.getMonth() + 1}/${date.getDate()} (${dayNames[date.getDay()]})`}
+                                </div>
+                                <div className="col-span-2 flex flex-wrap gap-x-3 gap-y-1">
+                                    {finalSlots.map(slot => {
+                                        const liStyle: React.CSSProperties = { color: textColor };
+                                        if (slot.state === 'booked') {
+                                            if (bookedStyle === 'fade') { liStyle.opacity = 0.3; } 
+                                            else if (bookedStyle === 'strikethrough') {
+                                                liStyle.textDecoration = 'line-through';
+                                                liStyle.textDecorationColor = strikethroughColor;
+                                                liStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
                                             }
-                                            return (
-                                                <li key={slot.time} style={liStyle}>
-                                                  {slot.time}
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
-                                )}
+                                        }
+                                        return <span key={slot.time} style={liStyle}>{slot.time}</span>;
+                                    })}
+                                </div>
                             </div>
                         );
-                    });
-                })}
-            </div>
+                    })}
+                </div>
+            ) : (
+                <div className="grid grid-cols-7" style={{ gap: `${verticalGap}px ${horizontalGap}px` }}>
+                    {dayNames.map(dayName => (
+                        <div key={dayName} className="font-bold text-center pb-2" style={{ color: textColor }}>
+                            {dayName}
+                        </div>
+                    ))}
+                    
+                    {weeks.map((week, weekIndex) => {
+                        const isPlaceholderRow = week.every(day => !day.isCurrentMonth);
+                        return week.map((day, dayIndex) => {
+                            const dateKey = formatDateKey(day.date);
+                            const slots = scheduleData[dateKey] || [];
+                            const finalSlots = showBookedSlots ? slots : slots.filter(s => s.state === 'available');
+                            const hasSlots = day.isCurrentMonth && finalSlots.length > 0;
+
+                            return (
+                                <div key={`${weekIndex}-${dayIndex}`} style={getBlockStyles(day.isCurrentMonth, isPlaceholderRow)}>
+                                    <p className="font-bold" style={{ color: day.isCurrentMonth ? textColor : 'transparent' }}>
+                                        {day.date.getDate()}
+                                    </p>
+                                    {hasSlots && (
+                                        <ul className="space-y-1 mt-1">
+                                            {finalSlots.map(slot => {
+                                                const liStyle: React.CSSProperties = { color: textColor };
+                                                if (slot.state === 'booked') {
+                                                    if (bookedStyle === 'fade') {
+                                                        liStyle.opacity = 0.3;
+                                                    } else if (bookedStyle === 'strikethrough') {
+                                                        liStyle.textDecoration = 'line-through';
+                                                        liStyle.textDecorationColor = strikethroughColor;
+                                                        liStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
+                                                    }
+                                                }
+                                                return (
+                                                    <li key={slot.time} style={liStyle}>
+                                                      {slot.time}
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
+                                </div>
+                            );
+                        });
+                    })}
+                </div>
+            )}
         </div>
     );
 });
@@ -1327,7 +1679,7 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (docRef) {
-            docRef.get().then(doc => {
+            docRef.get().then((doc: { exists: any; data: () => any; }) => {
                 if (doc.exists) {
                     const data = doc.data();
                     if(data){
@@ -1335,7 +1687,7 @@ const App: React.FC = () => {
                         setTitle(data.title || "可預約時段");
                     }
                 }
-            }).catch(error => console.error("Error loading data from Firestore:", error));
+            }).catch((error: any) => console.error("Error loading data from Firestore:", error));
         } else {
             try {
                 const localData = localStorage.getItem('scheduleData');
@@ -1355,7 +1707,7 @@ const App: React.FC = () => {
         setTitle(newTitle);
         if (docRef) {
             docRef.set({ schedule: newSchedule, title: newTitle }, { merge: true })
-                .catch(error => console.error("Error saving data to Firestore:", error));
+                .catch((error: any) => console.error("Error saving data to Firestore:", error));
         } else {
             localStorage.setItem('scheduleData', JSON.stringify(newSchedule));
             localStorage.setItem('scheduleTitle', newTitle);
@@ -1442,13 +1794,6 @@ const App: React.FC = () => {
     };
     
     const loginPromptContent = isFirebaseConfigured && !user ? <LoginPrompt onLoginClick={() => setIsAuthModalOpen(true)} /> : null;
-    
-    const createFooter = (content: React.ReactNode) => (
-        <>
-            {loginPromptContent}
-            {content}
-        </>
-    );
 
     return (
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
