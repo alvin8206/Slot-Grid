@@ -1,3 +1,5 @@
+
+
 import React, { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import type { ScheduleData, CalendarDay, PngStyle, Slot, PngExportViewMode, TitleAlign } from './types';
 import { MONTH_NAMES, DAY_NAMES, PREDEFINED_SLOTS, MONTH_NAMES_EN, DAY_NAMES_EN } from './constants';
@@ -1016,46 +1018,65 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
     }, [isOpen, font, fontStatuses, loadFont]);
 
 
-    const handleStartExport = useCallback(async () => {
-        setExportStage('generating');
-
-        const exportNode = finalExportRef.current;
-        if (!exportNode) {
-            alert('無法匯出：預覽元件尚未準備好。');
-            setExportStage('configuring');
+    // FIX: Refactored export logic to use useEffect, preventing race conditions.
+    useEffect(() => {
+        // This effect runs only when exportStage changes to 'generating'.
+        if (exportStage !== 'generating') {
             return;
         }
-    
-        const styleElement = document.createElement('style');
-    
-        try {
-            setLoadingMessage('正在嵌入漂亮的字體...');
-            const fontEmbedCSS = await getFontEmbedCss(font);
-            
-            styleElement.innerHTML = fontEmbedCSS;
-            exportNode.appendChild(styleElement);
-    
-            setLoadingMessage('正在繪製高解析度圖片...');
-            const dataUrl = await htmlToImage.toPng(exportNode, {
-                quality: 1,
-                pixelRatio: 2,
-                backgroundColor: bgColor,
-            });
-    
-            setGeneratedPngDataUrl(dataUrl);
-            setExportStage('completed');
-    
-        } catch (error) {
-            console.error('Oops, something went wrong during PNG export!', error);
-            alert('匯出圖片時發生錯誤！');
-            setExportStage('configuring');
-        } finally {
-            // Important: Clean up the injected style tag afterwards
-            if (exportNode.contains(styleElement)) {
-                exportNode.removeChild(styleElement);
+
+        const performExport = async () => {
+            const exportNode = finalExportRef.current;
+            if (!exportNode) {
+                alert('無法匯出：預覽元件尚未準備好。');
+                setExportStage('configuring');
+                return;
             }
-        }
-    }, [font, bgColor]);
+        
+            const styleElement = document.createElement('style');
+        
+            try {
+                setLoadingMessage('正在嵌入漂亮的字體...');
+                const fontEmbedCSS = await getFontEmbedCss(font);
+                
+                styleElement.innerHTML = fontEmbedCSS;
+                exportNode.appendChild(styleElement);
+        
+                setLoadingMessage('正在繪製高解析度圖片...');
+                const dataUrl = await htmlToImage.toPng(exportNode, {
+                    quality: 1,
+                    pixelRatio: 2,
+                    backgroundColor: bgColor,
+                });
+        
+                setGeneratedPngDataUrl(dataUrl);
+                setExportStage('completed');
+        
+            } catch (error) {
+                console.error('Oops, something went wrong during PNG export!', error);
+                alert('匯出圖片時發生錯誤！');
+                setExportStage('configuring');
+            } finally {
+                // Important: Clean up the injected style tag afterwards
+                if (exportNode.contains(styleElement)) {
+                    exportNode.removeChild(styleElement);
+                }
+            }
+        };
+
+        // We use a short timeout to ensure React has fully committed the DOM update
+        // for finalExportRef to be available.
+        const timeoutId = setTimeout(performExport, 50);
+
+        return () => clearTimeout(timeoutId);
+
+    }, [exportStage, font, bgColor]);
+
+    const handleStartExport = useCallback(() => {
+        // This function now only signals the intent to start exporting.
+        // The actual logic is handled by the useEffect hook above.
+        setExportStage('generating');
+    }, []);
 
     const handleDownloadFile = useCallback(() => {
         if (!generatedPngDataUrl) return;
@@ -1142,10 +1163,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
         </>
     );
     
-    const TabButton: React.FC<{ tab: PngSettingsTab, label: string }> = ({ tab, label }) => (
+    const TabButton: React.FC<{ tab: PngSettingsTab, label: string; disabled?: boolean }> = ({ tab, label, disabled }) => (
       <button 
-        onClick={() => setActiveTab(tab)} 
-        className={`py-2 px-4 rounded-lg transition-all text-sm font-medium ${activeTab === tab ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>
+        onClick={() => !disabled && setActiveTab(tab)} 
+        disabled={disabled}
+        className={`py-2 px-4 rounded-lg transition-all text-sm font-medium ${activeTab === tab ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
         {label}
       </button>
     );
@@ -1226,7 +1248,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                 <div className="w-full lg:w-1/2 lg:sticky lg:top-0">
                      <div className="space-y-2">
                         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">預覽</h3>
-                        <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden">
+                        <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden max-h-[25vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                             <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out' }}>
                                 <PngExportContent ref={exportRef} {...propsForContent} />
                             </div>
@@ -1234,7 +1256,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                     </div>
                 </div>
                 <div className="w-full lg:w-1/2 space-y-4">
-                  <div className="p-1">
+                    <SettingsCard>
                       <SettingsSection title="顯示範圍">
                         <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
                             <ViewModeButton mode="month" label="完整月曆"/>
@@ -1242,7 +1264,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                             <ViewModeButton mode="list" label="清單模式"/>
                         </div>
                       </SettingsSection>
-                  </div>
+                    </SettingsCard>
 
                   <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
                       <TabButton tab="content" label="內容" />
@@ -1299,7 +1321,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                     )}
                     {activeTab === 'style' && (
                       <>
-                        {exportViewMode !== 'list' &&
+                        {exportViewMode !== 'list' && (
                           <SettingsCard>
                             <SettingsSection title="整體風格">
                                 <div className="grid grid-cols-4 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
@@ -1310,16 +1332,16 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                                 </div>
                             </SettingsSection>
                           </SettingsCard>
-                        }
+                        )}
                         <SettingsCard>
                           <SettingsSection title="顏色">
                             <div className="space-y-3">
                               <ColorSelector label="背景" value={bgColor} onChange={setBgColor} presets={PRESET_COLORS.bg} />
                               <ColorSelector label="文字" value={textColor} onChange={setTextColor} presets={PRESET_COLORS.text} />
-                              {(pngStyle === 'wireframe' || pngStyle === 'custom') && 
+                              {(pngStyle === 'wireframe' || pngStyle === 'custom') && (exportViewMode !== 'list') &&
                                   <ColorSelector label="邊框" value={borderColor} onChange={setBorderColor} presets={PRESET_COLORS.border} />
                               }
-                              {(pngStyle === 'borderless' || pngStyle === 'custom') && 
+                              {(pngStyle === 'borderless' || pngStyle === 'custom') && (exportViewMode !== 'list') &&
                                   <ColorSelector label="區塊" value={blockColor} onChange={setBlockColor} presets={PRESET_COLORS.block} />
                               }
                               {showBookedSlots && bookedStyle === 'strikethrough' && (
@@ -1337,7 +1359,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                             </div>
                           </SettingsSection>
                         </SettingsCard>
-                        {pngStyle === 'custom' && (
+                        {pngStyle === 'custom' && (exportViewMode !== 'list') && (
                             <SettingsCard>
                                 <SettingsSection title="效果">
                                     <label htmlFor="png-show-shadow" className="flex items-center justify-between cursor-pointer">
@@ -1351,22 +1373,24 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                                 </SettingsSection>
                             </SettingsCard>
                         )}
-                        <SettingsSection title="字體">
-                            <div className="relative">
-                                <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                                    {FONT_OPTIONS.map(f => (
-                                        <FontCard
-                                            key={f.id}
-                                            fontOption={f}
-                                            isSelected={font === f.id}
-                                            status={fontStatuses[f.id] || 'idle'}
-                                            onSelect={() => handleFontSelect(f)}
-                                            preloadFont={() => loadFont(f)}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        </SettingsSection>
+                        <SettingsCard>
+                          <SettingsSection title="字體">
+                              <div className="relative">
+                                  <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                                      {FONT_OPTIONS.map(f => (
+                                          <FontCard
+                                              key={f.id}
+                                              fontOption={f}
+                                              isSelected={font === f.id}
+                                              status={fontStatuses[f.id] || 'idle'}
+                                              onSelect={() => handleFontSelect(f)}
+                                              preloadFont={() => loadFont(f)}
+                                          />
+                                      ))}
+                                  </div>
+                              </div>
+                          </SettingsSection>
+                        </SettingsCard>
                       </>
                     )}
                     {activeTab === 'layout' && (
@@ -1389,7 +1413,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                                 <input type="range" min="0.5" max="5" step="0.1" value={fontScale} onChange={e => setFontScale(Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
                            </SettingsSection>
                         </SettingsCard>
-                        {exportViewMode !== 'list' &&
+                        {exportViewMode !== 'list' && (
                           <SettingsCard>
                              <SettingsSection title="間距">
                                   <div>
@@ -1408,7 +1432,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({ isOpen, onClose, schedu
                                   </div>
                              </SettingsSection>
                           </SettingsCard>
-                        }
+                        )}
                       </>
                     )}
                   </div>
