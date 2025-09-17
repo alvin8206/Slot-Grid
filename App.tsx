@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
-import type { ScheduleData, CalendarDay, PngStyle, Slot, PngExportViewMode, TitleAlign } from './types';
+import type { ScheduleData, CalendarDay, PngStyle, Slot, PngExportViewMode, TitleAlign, DayData, DayStatus, PngSettingsState } from './types';
 import { MONTH_NAMES, DAY_NAMES, PREDEFINED_SLOTS, MONTH_NAMES_EN, DAY_NAMES_EN } from './constants';
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, CloseIcon, TrashIcon, CopyIcon, ClipboardIcon, CalendarIcon, EditIcon, RainbowIcon, UserIcon, GoogleIcon, CheckIcon, SpinnerIcon } from './components/icons';
 import { auth, db, googleProvider, isFirebaseConfigured } from './firebaseClient';
 import { AdSlot } from './components/AdSlot';
-import { embedFontForExport } from './fontUtils';
 import { getPrimaryFamily } from './fonts';
+import { embedFontForExport } from './fontUtils';
 
 
 // This declaration is necessary because html-to-image is loaded from a CDN.
@@ -64,7 +64,24 @@ const PRESET_COLORS = {
     border: ['transparent', '#E5E7EB', '#D1D5DB', '#9CA3AF', '#374151', '#FCA5A5', '#93C5FD'],
     block: ['transparent', '#F9FAFB', '#FFFFFF', '#E5E7EB', '#1F2937', '#FEE2E2', '#DBEAFE'],
     strikethrough: ['#EF4444', '#FFFFFF', '#9CA3AF', '#6B7280', '#111827'],
+    // NEW: A shared palette for all status text pickers.
+    status: [
+        '#EF4444', // Red
+        '#FBBF24', // Yellow
+        '#22C55E', // Green
+        '#111827', // Black
+        '#FFFFFF', // White
+        '#6B7280', // Gray
+    ],
 };
+
+const DAY_STATUS_TEXT_MAP: Record<DayStatus, string> = {
+  available: '可預約',
+  dayOff: '休假',
+  closed: '公休',
+  fullyBooked: '已額滿'
+};
+
 
 // --- Helper Functions ---
 const formatDateKey = (date: Date): string => {
@@ -77,6 +94,37 @@ const formatDateKey = (date: Date): string => {
 };
 
 const applyStrikethrough = (text: string) => text.split('').join('\u0336') + '\u0336';
+
+/**
+ * NEW: Determines the effective status of a day for display purposes.
+ * If a day is 'available' but all its slots are 'booked', it's considered 'fullyBooked'.
+ */
+const getEffectiveStatus = (dayData: DayData | undefined): DayStatus | 'empty' => {
+  if (!dayData || (!dayData.slots?.length && dayData.status === 'available')) {
+    return 'empty';
+  }
+
+  // If status is already set to something other than available, respect it.
+  if (dayData.status !== 'available') {
+    return dayData.status;
+  }
+  
+  const { slots } = dayData;
+
+  // If it's 'available' but has no slots, it's just empty (and will be treated as available for editing).
+  if (!slots || slots.length === 0) {
+    return 'empty';
+  }
+
+  // THE CORE LOGIC: If status is 'available' and all slots are 'booked', it's effectively 'fullyBooked'.
+  if (slots.every(slot => slot.state === 'booked')) {
+    return 'fullyBooked';
+  }
+
+  // Otherwise, it's still available.
+  return 'available';
+};
+
 
 // --- Child Components ---
 // A simple interface for the user object from Firebase Auth
@@ -264,7 +312,7 @@ interface SlotEditorModalProps {
   scheduleData: ScheduleData;
   calendarDays: CalendarDay[];
   onClose: () => void;
-  onDone: (updatedDay: { date: Date, slots: Slot[] }, pastedDays: string[]) => void;
+  onDone: (updatedDay: { date: Date, dayData: DayData }, pastedDays: string[]) => void;
   copiedSlots: Slot[] | null;
   onCopy: (slots: Slot[]) => void;
   loginPromptContent?: React.ReactNode;
@@ -272,6 +320,7 @@ interface SlotEditorModalProps {
 
 const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, scheduleData, calendarDays, onClose, onDone, copiedSlots, onCopy, loginPromptContent }) => {
   const [localSlots, setLocalSlots] = useState<Map<string, Slot>>(new Map());
+  const [localStatus, setLocalStatus] = useState<DayStatus>('available');
   const [customSlot, setCustomSlot] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [multiPasteDates, setMultiPasteDates] = useState<Set<string>>(new Set());
@@ -280,13 +329,23 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
 
   useEffect(() => {
     if (selectedDay) {
-      const dateKey = formatDateKey(selectedDay);
-      const daySlots = scheduleData[dateKey] || [];
-      setLocalSlots(new Map(daySlots.map(slot => [slot.time, slot])));
-      setCopySuccess(false);
-      setMultiPasteDates(new Set());
-      setIsMultiPasteExpanded(false);
-      setLastSelectedDateKey(null);
+        const dateKey = formatDateKey(selectedDay);
+        const dayData = scheduleData[dateKey]; // Can be undefined
+        
+        // Use the smart helper function to determine the true initial state
+        const effectiveStatus = getEffectiveStatus(dayData);
+
+        // If the day is effectively empty, treat it as 'available' for editing purposes.
+        const initialStatus = effectiveStatus === 'empty' ? 'available' : effectiveStatus;
+        
+        setLocalStatus(initialStatus);
+        setLocalSlots(new Map(dayData?.slots.map(slot => [slot.time, slot]) || []));
+
+        // Reset other modal-specific states
+        setCopySuccess(false);
+        setMultiPasteDates(new Set());
+        setIsMultiPasteExpanded(false);
+        setLastSelectedDateKey(null);
     }
   }, [selectedDay, scheduleData, isOpen]);
 
@@ -332,6 +391,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
 
   const handlePaste = () => {
     if (copiedSlots) {
+      setLocalStatus('available');
       const newSlots = new Map<string, Slot>(copiedSlots.map(slot => [slot.time, {...slot, state: 'available'} as Slot]));
       handleSlotUpdate(newSlots);
     }
@@ -386,10 +446,25 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
 
   const handleDone = () => {
     if (selectedDay) {
-      onDone({ date: selectedDay, slots: getSortedSlots(localSlots) }, Array.from(multiPasteDates));
+      const finalSlots = getSortedSlots(localSlots);
+      let finalStatus = localStatus;
+      
+      const originalDayData = scheduleData[formatDateKey(selectedDay)];
+      const wasAvailable = !originalDayData || originalDayData.status === 'available';
+
+      if (wasAvailable && localStatus === 'available' && finalSlots.length === 0) {
+        finalStatus = 'fullyBooked';
+      }
+      
+      onDone({ date: selectedDay, dayData: { status: finalStatus, slots: finalSlots } }, Array.from(multiPasteDates));
     }
     onClose();
   };
+  
+  const handleSetDayStatus = (status: DayStatus) => {
+    setLocalStatus(status);
+    setLocalSlots(new Map());
+  }
 
   const handleCustomSlotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/[^0-9]/g, '');
@@ -400,6 +475,18 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
     }
     
     setCustomSlot(formattedValue);
+  };
+  
+  // UPDATED: Now clears both day status and individual slot states.
+  const handleClearStatusAndSlots = () => {
+    setLocalStatus('available'); // Set status to available
+    
+    // Also reset all individual slots to 'available' (un-strike them)
+    const resetSlots = new Map<string, Slot>();
+    localSlots.forEach((slot, time) => {
+        resetSlots.set(time, { ...slot, state: 'available' });
+    });
+    setLocalSlots(resetSlots);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -432,98 +519,125 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
       </div>
     </>
   );
+  
+  const StatusButton: React.FC<{status: DayStatus, label: string}> = ({ status, label }) => (
+    <button onClick={() => handleSetDayStatus(status)} className="text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold py-2 px-3 rounded-lg transition-colors">
+        {label}
+    </button>
+  );
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer}>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-            <button onClick={handleCopy} className="flex items-center justify-center text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"><CopyIcon/>{copySuccess ? '已複製!' : '複製此日時段'}</button>
-            <button onClick={handlePaste} disabled={!copiedSlots} className="flex items-center justify-center text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><ClipboardIcon/>貼上至此日</button>
+        <div className="mb-4">
+            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">設定整日狀態</h3>
+            <div className="grid grid-cols-3 gap-2">
+                <StatusButton status="dayOff" label="設為休假" />
+                <StatusButton status="closed" label="設為公休" />
+                <StatusButton status="fullyBooked" label="設為已額滿" />
+            </div>
         </div>
 
-        {copiedSlots && !isMultiPasteExpanded && (
-            <button 
-                onClick={() => setIsMultiPasteExpanded(true)}
-                className="w-full text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-lg dark:bg-blue-900/50 dark:hover:bg-blue-900 dark:text-blue-300 transition-colors mb-4"
-            >
-                貼上至多個日期...
-            </button>
+        {localStatus !== 'available' && (
+            <div className="text-center p-4 my-4 bg-blue-50 dark:bg-blue-900/50 rounded-lg">
+                <p className="font-semibold text-blue-800 dark:text-blue-200">目前狀態為：{DAY_STATUS_TEXT_MAP[localStatus]}</p>
+                <button onClick={handleClearStatusAndSlots} className="mt-2 text-sm text-blue-600 dark:text-blue-300 hover:underline font-medium">
+                    清除狀態，返回時段編輯
+                </button>
+            </div>
         )}
 
-        {copiedSlots && isMultiPasteExpanded && (
-            <div className="mb-4 bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold text-blue-800 dark:text-blue-300">貼上至多個日期</h3>
-                    <button 
-                        onClick={handlePasteToAll}
-                        className="text-xs bg-blue-200 text-blue-800 font-semibold px-2 py-1 rounded-md hover:bg-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 transition-colors"
-                    >
-                        貼上全部
-                    </button>
-                </div>
-                <div className="grid grid-cols-7 gap-1 text-center font-semibold text-gray-500 dark:text-gray-400 text-xs mb-2">
-                    {DAY_NAMES.map(day => <div key={day}>{day}</div>)}
-                </div>
-                <div className="grid grid-cols-7 gap-1">
-                    {calendarDays.map(({ date, isCurrentMonth }, index) => {
-                        const key = formatDateKey(date);
-                        const isSelected = multiPasteDates.has(key);
-                        const isTargetDay = selectedDay && formatDateKey(selectedDay) === key;
-                        return (
-                            <div key={index} onClick={(e) => isCurrentMonth && !isTargetDay && toggleMultiPasteDate(date, e)} 
-                                className={`relative aspect-square border rounded-lg p-1 text-xs transition-all flex items-center justify-center 
-                                ${!isCurrentMonth ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500' : (isTargetDay ? 'bg-gray-300 dark:bg-gray-600' : 'cursor-pointer')}
-                                ${isSelected ? 'bg-blue-600 border-blue-700 font-bold text-white' : (isCurrentMonth && !isTargetDay ? 'bg-white dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-blue-600 text-gray-800 dark:text-gray-200' : '')}
-                                `}>
-                                {isSelected && <CheckIcon className="absolute top-0.5 right-0.5 h-3 w-3 text-white" />}
-                                <span>{date.getDate()}</span>
-                            </div>
-                        );
-                    })}
-                </div>
+        <div className={localStatus !== 'available' ? 'hidden' : 'space-y-4'}>
+            <hr className="border-gray-200 dark:border-gray-700"/>
+            <div className="grid grid-cols-2 gap-2">
+                <button onClick={handleCopy} className="flex items-center justify-center text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"><CopyIcon/>{copySuccess ? '已複製!' : '複製此日時段'}</button>
+                <button onClick={handlePaste} disabled={!copiedSlots} className="flex items-center justify-center text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><ClipboardIcon/>貼上至此日</button>
             </div>
+
+            {copiedSlots && !isMultiPasteExpanded && (
+                <button 
+                    onClick={() => setIsMultiPasteExpanded(true)}
+                    className="w-full text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-lg dark:bg-blue-900/50 dark:hover:bg-blue-900 dark:text-blue-300 transition-colors"
+                >
+                    貼上至多個日期...
+                </button>
             )}
 
-        <div className="mb-4">
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">已選時段 ({currentSlotsArray.length})</h3>
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg min-h-[80px] border dark:border-gray-700">
-                {currentSlotsArray.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                        {currentSlotsArray.map(slot => (
-                            <div key={slot.time} className="bg-blue-500 text-white text-sm font-medium pl-3 pr-2 py-1 rounded-full flex items-center gap-2">
-                                <span>{slot.time}</span>
-                                <button onClick={() => handleRemoveSlot(slot.time)} className="bg-blue-400 hover:bg-blue-300 rounded-full p-0.5"><TrashIcon/></button>
-                            </div>
-                        ))}
+            {copiedSlots && isMultiPasteExpanded && (
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-semibold text-blue-800 dark:text-blue-300">貼上至多個日期</h3>
+                        <button 
+                            onClick={handlePasteToAll}
+                            className="text-xs bg-blue-200 text-blue-800 font-semibold px-2 py-1 rounded-md hover:bg-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 transition-colors"
+                        >
+                            貼上全部
+                        </button>
                     </div>
-                ) : (
-                    <p className="text-gray-400 text-sm text-center py-4">尚未選擇任何時段</p>
-                )}
-            </div>
-        </div>
-        
-        <div className="mb-4">
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">快速新增</h3>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {PREDEFINED_SLOTS.map(slot => (
-                    <button key={slot} onClick={() => handleQuickAdd(slot)} disabled={localSlots.has(slot)} className="p-2 rounded-lg text-sm text-center transition-colors font-medium border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600 disabled:bg-gray-200 dark:disabled:bg-gray-800/50 disabled:text-gray-400 disabled:cursor-not-allowed">{slot}</button>
-                ))}
-            </div>
-        </div>
+                    <div className="grid grid-cols-7 gap-1 text-center font-semibold text-gray-500 dark:text-gray-400 text-xs mb-2">
+                        {DAY_NAMES.map(day => <div key={day}>{day}</div>)}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                        {calendarDays.map(({ date, isCurrentMonth }, index) => {
+                            const key = formatDateKey(date);
+                            const isSelected = multiPasteDates.has(key);
+                            const isTargetDay = selectedDay && formatDateKey(selectedDay) === key;
+                            return (
+                                <div key={index} onClick={(e) => isCurrentMonth && !isTargetDay && toggleMultiPasteDate(date, e)} 
+                                    className={`relative aspect-square border rounded-lg p-1 text-xs transition-all flex items-center justify-center 
+                                    ${!isCurrentMonth ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500' : (isTargetDay ? 'bg-gray-300 dark:bg-gray-600' : 'cursor-pointer')}
+                                    ${isSelected ? 'bg-blue-600 border-blue-700 font-bold text-white' : (isCurrentMonth && !isTargetDay ? 'bg-white dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-blue-600 text-gray-800 dark:text-gray-200' : '')}
+                                    `}>
+                                    {isSelected && <CheckIcon className="absolute top-0.5 right-0.5 h-3 w-3 text-white" />}
+                                    <span>{date.getDate()}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
-        <div>
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">自訂時段</h3>
-            <div className="flex gap-2">
-                <input 
-                    type="text"
-                    value={customSlot}
-                    onChange={handleCustomSlotChange}
-                    onKeyDown={handleKeyDown}
-                    placeholder="HH:MM"
-                    maxLength={5}
-                    inputMode="numeric"
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-                />
-                <button onClick={handleAddCustomSlot} className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0">新增</button>
+            <div>
+                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">已選時段 ({currentSlotsArray.length})</h3>
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg min-h-[80px] border dark:border-gray-700">
+                    {currentSlotsArray.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                            {currentSlotsArray.map(slot => (
+                                <div key={slot.time} className="bg-blue-500 text-white text-sm font-medium pl-3 pr-2 py-1 rounded-full flex items-center gap-2">
+                                    <span>{slot.time}</span>
+                                    <button onClick={() => handleRemoveSlot(slot.time)} className="bg-blue-400 hover:bg-blue-300 rounded-full p-0.5"><TrashIcon/></button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-gray-400 text-sm text-center py-4">尚未選擇任何時段</p>
+                    )}
+                </div>
+            </div>
+            
+            <div>
+                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">快速新增</h3>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {PREDEFINED_SLOTS.map(slot => (
+                        <button key={slot} onClick={() => handleQuickAdd(slot)} disabled={localSlots.has(slot)} className="p-2 rounded-lg text-sm text-center transition-colors font-medium border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600 disabled:bg-gray-200 dark:disabled:bg-gray-800/50 disabled:text-gray-400 disabled:cursor-not-allowed">{slot}</button>
+                    ))}
+                </div>
+            </div>
+
+            <div>
+                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">自訂時段</h3>
+                <div className="flex gap-2">
+                    <input 
+                        type="text"
+                        value={customSlot}
+                        onChange={handleCustomSlotChange}
+                        onKeyDown={handleKeyDown}
+                        placeholder="HH:MM"
+                        maxLength={5}
+                        inputMode="numeric"
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+                    />
+                    <button onClick={handleAddCustomSlot} className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0">新增</button>
+                </div>
             </div>
         </div>
     </Modal>
@@ -556,7 +670,7 @@ const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, sche
         const sortedDates = Object.keys(scheduleData)
             .filter(key => {
                 const date = new Date(key);
-                return date.getFullYear() === currentYear && date.getMonth() === currentMonth && scheduleData[key]?.length > 0;
+                return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
             })
             .sort((a,b) => a.localeCompare(b));
         
@@ -566,32 +680,41 @@ const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, sche
         
         sortedDates.forEach(dateKey => {
             const date = new Date(dateKey);
+            const dayData = scheduleData[dateKey];
+            const effectiveStatus = getEffectiveStatus(dayData); // Use the smart helper
+
+            if (effectiveStatus === 'empty') {
+                return; // Skip empty days entirely
+            }
+
             const year = date.getFullYear();
             const month = (date.getMonth() + 1).toString();
             const day = date.getDate().toString();
             const dayOfWeek = language === 'zh' ? DAY_NAMES[date.getDay()] : DAY_NAMES_EN[date.getDay()];
-            
-            let slotsToDisplay: string[] = [];
-            const bookedText = language === 'zh' ? '(已預約)' : '(Booked)';
+            const dateString = includeYear ? `${year}/${month}/${day}` : `${month}/${day}`;
 
-            const relevantSlots = scheduleData[dateKey] || [];
+            if (effectiveStatus !== 'available') {
+                text += `${dateString} (${dayOfWeek}): ${DAY_STATUS_TEXT_MAP[effectiveStatus]}\n`;
+                if (layout === 'default') text += '\n';
+                return;
+            }
+            
+            // This part now only runs for 'available' days
+            const relevantSlots = dayData?.slots || [];
             const finalSlots = showBooked ? relevantSlots : relevantSlots.filter(s => s.state === 'available');
 
             if (finalSlots.length === 0) return;
 
-            slotsToDisplay = finalSlots.map(slot => {
+            const slotsToDisplay = finalSlots.map(slot => {
                 if (slot.state === 'booked') {
                     if (bookedStyle === 'strikethrough') {
                         return applyStrikethrough(slot.time);
                     }
-                    return `${slot.time} ${bookedText}`;
+                    return `${slot.time} ${language === 'zh' ? '(已預約)' : '(Booked)'}`;
                 }
                 return slot.time;
             });
 
-
-            const dateString = includeYear ? `${year}/${month}/${day}` : `${month}/${day}`;
-            
             if (layout === 'compact') {
                  text += `${dateString} (${dayOfWeek}): ${slotsToDisplay.join(', ')}\n`;
             } else { // default
@@ -709,29 +832,6 @@ const ColorPickerInput: React.FC<ColorPickerInputProps> = ({ value, onChange, is
   );
 };
 
-// --- START: Lifted State Types ---
-type PngSettingsState = {
-  exportViewMode: PngExportViewMode;
-  pngStyle: PngStyle;
-  bgColor: string;
-  textColor: string;
-  borderColor: string;
-  blockColor: string;
-  showShadow: boolean;
-  showTitle: boolean;
-  showBookedSlots: boolean;
-  bookedStyle: 'strikethrough' | 'fade';
-  strikethroughColor: string;
-  strikethroughThickness: 'thin' | 'thick';
-  fontScale: number;
-  font: string;
-  language: 'zh' | 'en';
-  horizontalGap: number;
-  verticalGap: number;
-  titleAlign: TitleAlign;
-};
-// --- END: Lifted State Types ---
-
 
 interface PngExportModalProps {
     isOpen: boolean;
@@ -760,36 +860,33 @@ const SettingsCard: React.FC<React.PropsWithChildren<{ className?: string }>> = 
 );
 
 
-const ColorSelector: React.FC<{ label: string; value: string; onChange: (color: string) => void; presets: string[]; }> = ({ label, value, onChange, presets }) => {
+const ColorSelectorRow: React.FC<{ value: string; onChange: (color: string) => void; presets: string[]; }> = ({ value, onChange, presets }) => {
     const isCustom = !presets.includes(value);
     return (
-        <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-400">{label}</span>
-            <div className="flex items-center gap-2">
-                {presets.map(color => {
-                    if (color === 'transparent') {
-                       return (
-                            <button
-                                key={color}
-                                type="button"
-                                onClick={() => onChange(color)}
-                                className={`w-6 h-6 rounded-full transition-transform transform hover:scale-110 shadow-sm border bg-[conic-gradient(from_90deg_at_50%_50%,#ccc_25%,#fff_0,#fff_50%,#ccc_0,#ccc_75%,#fff_0)] bg-[length:10px_10px] ${value === color ? 'ring-2 ring-offset-1 ring-blue-500' : 'border-gray-300 dark:border-gray-600'}`}
-                            />
-                       );
-                    }
-                    return (
-                        <button key={color} type="button" onClick={() => onChange(color)} className={`w-6 h-6 rounded-full transition-transform transform hover:scale-110 shadow-sm border dark:border-gray-700 ${value.toUpperCase() === color.toUpperCase() ? 'ring-2 ring-offset-1 ring-blue-500' : ''}`} style={{ backgroundColor: color }} />
-                    )
-                })}
-                <ColorPickerInput value={value} onChange={onChange} isCustom={isCustom} />
-            </div>
+        <div className="flex items-center justify-end gap-2">
+            {presets.map(color => {
+                if (color === 'transparent') {
+                   return (
+                        <button
+                            key={color}
+                            type="button"
+                            onClick={() => onChange(color)}
+                            className={`w-6 h-6 rounded-full transition-transform transform hover:scale-110 shadow-sm border bg-[conic-gradient(from_90deg_at_50%_50%,#ccc_25%,#fff_0,#fff_50%,#ccc_0,#ccc_75%,#fff_0)] bg-[length:10px_10px] ${value === color ? 'ring-2 ring-offset-1 ring-blue-500' : 'border-gray-300 dark:border-gray-600'}`}
+                        />
+                   );
+                }
+                return (
+                    <button key={color} type="button" onClick={() => onChange(color)} className={`w-6 h-6 rounded-full transition-transform transform hover:scale-110 shadow-sm border dark:border-gray-700 ${value.toUpperCase() === color.toUpperCase() ? 'ring-2 ring-offset-1 ring-blue-500' : ''}`} style={{ backgroundColor: color }} />
+                )
+            })}
+            <ColorPickerInput value={value} onChange={onChange} isCustom={isCustom} />
         </div>
     );
 };
 
 type FontStatus = 'idle' | 'loading' | 'loaded';
 type PngSettingsTab = 'content' | 'style' | 'layout';
-type ExportStage = 'configuring' | 'embedding_font' | 'generating_image' | 'completed';
+type ExportStage = 'configuring' | 'generating_image' | 'completed';
 
 
 const FontCard: React.FC<{
@@ -857,16 +954,17 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     const exportRef = useRef<HTMLDivElement>(null);
     const previewContainerRef = useRef<HTMLDivElement>(null);
     const scaleWrapperRef = useRef<HTMLDivElement>(null);
-    const finalExportRef = useRef<HTMLDivElement>(null);
     
     // UI State
     const [activeTab, setActiveTab] = useState<PngSettingsTab>('content');
+    const [isExporting, setIsExporting] = useState(false);
 
     // Destructure settings from props for easier access
     const {
         exportViewMode, pngStyle, bgColor, textColor, borderColor, blockColor, showShadow,
         showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness,
-        fontScale, font, language, horizontalGap, verticalGap, titleAlign
+        fontScale, font, language, horizontalGap, verticalGap, titleAlign,
+        dayOffColor, closedColor, fullyBookedColor,
     } = pngSettings;
 
     const updateSetting = <K extends keyof PngSettingsState>(key: K, value: PngSettingsState[K]) => {
@@ -879,7 +977,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     const [generatedPngDataUrl, setGeneratedPngDataUrl] = useState<string | null>(null);
     const [loadingMessage, setLoadingMessage] = useState('');
     const [fontStatuses, setFontStatuses] = useState<Record<string, FontStatus>>({});
-    const [embeddedFontCss, setEmbeddedFontCss] = useState<string | null>(null);
 
     
     useEffect(() => {
@@ -887,7 +984,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             setExportStage('configuring');
             setGeneratedPngDataUrl(null);
             setLocalTitle(title);
-            setEmbeddedFontCss(null);
+            setIsExporting(false);
             // Reset only the tab, keep settings persistent
             setActiveTab('content');
         }
@@ -959,10 +1056,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        // CRITICAL FIX: Removed the `&text=...` parameter. This was the root cause
-        // of art fonts failing to load in previews on mobile. By requesting the
-        // full font file, we ensure previews are accurate and the font is properly
-        // cached for the export process, eliminating the race condition.
         link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap`;
 
         link.onload = () => {
@@ -997,106 +1090,72 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         
         try {
             if (currentStatus !== 'loaded') await loadFont(fontOption);
-            // Asynchronously warm up the cache for export, fire-and-forget
-            embedFontForExport(fontOption);
         } catch (error) {
             alert(`無法載入字體：${fontOption.name}。請稍後再試。`);
         }
     }, [fontStatuses, loadFont, updateSetting]);
 
 
-    // STAGE 1: Embed Font and wait for it to be ready
-    useEffect(() => {
-        const performFontEmbedding = async () => {
-            if (exportStage !== 'embedding_font') return;
-
-            setLoadingMessage('正在準備字體...');
-            
-            const selectedFont = FONT_OPTIONS.find(f => f.id === font);
-            if (!selectedFont) {
-                alert("錯誤：找不到選擇的字體。");
-                setExportStage('configuring');
-                return;
-            }
-            
-            try {
-                // 1. Get the self-contained CSS with base64 font data
-                const css = await embedFontForExport(selectedFont);
-
-                // 2. Inject this CSS into the main document to make it available to the browser's font engine
-                const styleElement = document.createElement('style');
-                styleElement.id = 'temp-font-for-export';
-                styleElement.textContent = css;
-                document.head.appendChild(styleElement);
-
-                // 3. Use document.fonts.load() to wait until the browser has actually parsed and loaded the font
-                const fontFamilyToLoad = getPrimaryFamily(selectedFont.id);
-                await document.fonts.load(`16px "${fontFamilyToLoad}"`);
-
-                // 4. Now that the font is ready, store the CSS for html-to-image and proceed
-                setEmbeddedFontCss(css);
-                setExportStage('generating_image');
-
-            } catch (error) {
-                console.error('Font embedding failed:', error);
-                alert('嵌入字體時發生錯誤，請檢查您的網路連線並重試。');
-                setExportStage('configuring');
-            }
-        };
-
-        performFontEmbedding();
-    }, [exportStage, font]);
-    
-    // STAGE 2: Generate Image
-    useEffect(() => {
-        const performImageGeneration = async () => {
-            if (exportStage !== 'generating_image' || !embeddedFontCss) return;
-
-            const exportNode = finalExportRef.current;
-            if (!exportNode) {
-                alert('無法匯出：預覽元件尚未準備好。');
-                setExportStage('configuring');
-                return;
-            }
-            
-            setLoadingMessage('正在繪製高解析度圖片...');
-
-            try {
-                const dataUrl = await htmlToImage.toPng(exportNode, {
-                    quality: 1,
-                    pixelRatio: 2,
-                    backgroundColor: bgColor,
-                    fontEmbedCSS: embeddedFontCss,
-                });
-                setGeneratedPngDataUrl(dataUrl);
-                setExportStage('completed');
-            } catch (error) {
-                console.error('Oops, something went wrong during PNG export!', error);
-                alert('匯出圖片時發生錯誤！');
-                setExportStage('configuring');
-            }
-        };
-
-        // Adding a small timeout to ensure DOM is ready after stage change
-        const timeoutId = setTimeout(performImageGeneration, 50);
-        return () => clearTimeout(timeoutId);
-
-    }, [exportStage, embeddedFontCss, bgColor]);
-
-    // Cleanup effect for the injected style tag
-    useEffect(() => {
-        if (exportStage === 'completed' || exportStage === 'configuring') {
-            const styleElement = document.getElementById('temp-font-for-export');
-            if (styleElement) {
-                styleElement.remove();
-            }
+    const handleStartExport = useCallback(async () => {
+        const exportNode = exportRef.current;
+        if (!exportNode) {
+            alert('無法匯出：預覽元件尚未準備好。');
+            return;
         }
-    }, [exportStage]);
 
+        setIsExporting(true);
+        setExportStage('generating_image');
+        setLoadingMessage('正在準備字體...');
 
-    const handleStartExport = useCallback(() => {
-        setExportStage('embedding_font');
-    }, []);
+        const selectedFont = FONT_OPTIONS.find(f => f.id === font);
+        if (!selectedFont) {
+            alert("錯誤：找不到選擇的字體。");
+            setIsExporting(false);
+            setExportStage('configuring');
+            return;
+        }
+        
+        const styleElementId = 'temp-font-for-export';
+
+        try {
+            // STEP 1: Get the self-contained CSS with Base64 font data.
+            const fontEmbedCSS = await embedFontForExport(selectedFont);
+
+            // STEP 2: Inject this CSS into the document so the browser can load it and we can wait for it.
+            const styleElement = document.createElement('style');
+            styleElement.id = styleElementId;
+            styleElement.innerHTML = fontEmbedCSS;
+            document.head.appendChild(styleElement);
+            
+            // STEP 3: Wait for the browser to confirm the INJECTED font is ready.
+            const fontFamilyToLoad = getPrimaryFamily(selectedFont.id);
+            await document.fonts.load(`16px "${fontFamilyToLoad}"`);
+
+            // STEP 4: Generate the image, providing the CSS to the library for maximum reliability.
+            setLoadingMessage('正在繪製高解析度圖片...');
+            const dataUrl = await htmlToImage.toPng(exportNode, {
+                quality: 1,
+                pixelRatio: 2,
+                backgroundColor: bgColor,
+                fontEmbedCSS: fontEmbedCSS,
+            });
+
+            setGeneratedPngDataUrl(dataUrl);
+            setExportStage('completed');
+
+        } catch (error) {
+            console.error('Oops, something went wrong during PNG export!', error);
+            alert('匯出圖片時發生錯誤！');
+            setExportStage('configuring');
+        } finally {
+            // STEP 5: Clean up the injected style element.
+            const tempStyle = document.getElementById(styleElementId);
+            if (tempStyle) {
+                tempStyle.remove();
+            }
+            setIsExporting(false);
+        }
+    }, [font, bgColor, currentDate, localTitle]);
 
     const handleDownloadFile = useCallback(() => {
         if (!generatedPngDataUrl) return;
@@ -1148,7 +1207,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     
     if (!isOpen) return null;
 
-    const isExporting = exportStage === 'embedding_font' || exportStage === 'generating_image';
     const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{exportStage === 'completed' ? '匯出成功！' : '匯出 PNG 圖片'}</h2>;
     const footer = (
         <>
@@ -1197,21 +1255,21 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
 
     return (
         <Modal isOpen={isOpen} onClose={isExporting ? () => {} : onClose} headerContent={header} footerContent={footer} modalClassName="xl:max-w-4xl">
-           {(exportStage === 'embedding_font' || exportStage === 'generating_image') && (
-              <div
+            <div
                 style={{
+                  // The export node must be in the DOM for html-to-image to work,
+                  // but we can hide it visually.
                   position: 'fixed',
                   top: 0,
                   left: -99999,
                   pointerEvents: 'none',
+                  opacity: 0,
                 }}
               >
-                <PngExportContent ref={finalExportRef} {...propsForContent} />
-              </div>
-            )}
+                <PngExportContent ref={exportRef} {...propsForContent} />
+            </div>
 
-            
-            <div className={`absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex-col items-center justify-center p-4 ${isExporting || exportStage === 'completed' ? 'flex' : 'hidden'}`}>
+            <div className={`absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex-col items-center justify-center p-4 z-20 ${isExporting || exportStage === 'completed' ? 'flex' : 'hidden'}`}>
                 <div className="w-full flex flex-col items-center">
                  <div className="relative w-16 h-16 flex items-center justify-center">
                     <DownloadIcon
@@ -1252,7 +1310,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">預覽</h3>
                         <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden max-h-[25vh] lg:max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                             <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out, height 0.2s ease-out' }}>
-                                <PngExportContent ref={exportRef} {...propsForContent} />
+                                <PngExportContent {...propsForContent} />
                             </div>
                         </div>
                     </div>
@@ -1335,28 +1393,53 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                         </SettingsCard>}
                         <SettingsCard>
                           <SettingsSection title="顏色">
-                            <div className="space-y-3">
-                              <ColorSelector label="背景" value={bgColor} onChange={(c) => updateSetting('bgColor', c)} presets={PRESET_COLORS.bg} />
-                              <ColorSelector label="文字" value={textColor} onChange={(c) => updateSetting('textColor', c)} presets={PRESET_COLORS.text} />
-                              {(pngStyle === 'wireframe' || pngStyle === 'custom' || exportViewMode === 'list') &&
-                                  <ColorSelector label="邊框" value={borderColor} onChange={(c) => updateSetting('borderColor', c)} presets={PRESET_COLORS.border} />
-                              }
-                              {(pngStyle === 'borderless' || pngStyle === 'custom') &&
-                                  <ColorSelector label="區塊" value={blockColor} onChange={(c) => updateSetting('blockColor', c)} presets={PRESET_COLORS.block} />
-                              }
-                              {showBookedSlots && bookedStyle === 'strikethrough' && (
-                                <>
-                                  <ColorSelector label="橫線" value={strikethroughColor} onChange={(c) => updateSetting('strikethroughColor', c)} presets={PRESET_COLORS.strikethrough} />
-                                  <div className="pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
-                                      <span className="text-sm text-gray-600 dark:text-gray-400">橫線粗細</span>
-                                      <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1 mt-2">
-                                          <button onClick={() => updateSetting('strikethroughThickness', 'thin')} className={`py-2 rounded-lg transition-all text-sm font-medium ${strikethroughThickness === 'thin' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>細</button>
-                                          <button onClick={() => updateSetting('strikethroughThickness', 'thick')} className={`py-2 rounded-lg transition-all text-sm font-medium ${strikethroughThickness === 'thick' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>粗</button>
-                                      </div>
-                                  </div>
-                                </>
-                              )}
+                            <div className="grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-3">
+                                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">背景</span>
+                                <ColorSelectorRow presets={PRESET_COLORS.bg} value={bgColor} onChange={(c) => updateSetting('bgColor', c)} />
+
+                                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">主要文字</span>
+                                <ColorSelectorRow presets={PRESET_COLORS.text} value={textColor} onChange={(c) => updateSetting('textColor', c)} />
+                                
+                                {(pngStyle === 'wireframe' || pngStyle === 'custom' || exportViewMode === 'list') && (
+                                    <>
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">邊框</span>
+                                        <ColorSelectorRow presets={PRESET_COLORS.border} value={borderColor} onChange={(c) => updateSetting('borderColor', c)} />
+                                    </>
+                                )}
+
+                                {(pngStyle === 'borderless' || pngStyle === 'custom') && (
+                                    <>
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">區塊</span>
+                                        <ColorSelectorRow presets={PRESET_COLORS.block} value={blockColor} onChange={(c) => updateSetting('blockColor', c)} />
+                                    </>
+                                )}
                             </div>
+                            
+                            <div className="pt-4 mt-4 border-t border-gray-200/60 dark:border-gray-700/60">
+                                <div className="grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-3">
+                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">休假文字</span>
+                                    <ColorSelectorRow presets={PRESET_COLORS.status} value={dayOffColor} onChange={(c) => updateSetting('dayOffColor', c)} />
+                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">公休文字</span>
+                                    <ColorSelectorRow presets={PRESET_COLORS.status} value={closedColor} onChange={(c) => updateSetting('closedColor', c)} />
+                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">約滿文字</span>
+                                    <ColorSelectorRow presets={PRESET_COLORS.status} value={fullyBookedColor} onChange={(c) => updateSetting('fullyBookedColor', c)} />
+                                </div>
+                            </div>
+                            
+                            {showBookedSlots && bookedStyle === 'strikethrough' && (
+                                <div className="pt-3 mt-3 border-t border-gray-200/60 dark:border-gray-700/60">
+                                    <div className="grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-3">
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">橫線顏色</span>
+                                        <ColorSelectorRow presets={PRESET_COLORS.strikethrough} value={strikethroughColor} onChange={(c) => updateSetting('strikethroughColor', c)} />
+                                        
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">橫線粗細</span>
+                                        <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                            <button onClick={() => updateSetting('strikethroughThickness', 'thin')} className={`py-2 rounded-lg transition-all text-sm font-medium ${strikethroughThickness === 'thin' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>細</button>
+                                            <button onClick={() => updateSetting('strikethroughThickness', 'thick')} className={`py-2 rounded-lg transition-all text-sm font-medium ${strikethroughThickness === 'thick' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>粗</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                           </SettingsSection>
                         </SettingsCard>
                         {pngStyle === 'custom' && exportViewMode !== 'list' && (
@@ -1447,33 +1530,15 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     );
 };
 
-interface PngExportContentProps {
+interface PngExportContentProps extends PngSettingsState {
     scheduleData: ScheduleData;
     title: string;
     calendarDays: CalendarDay[];
     currentDate: Date;
-    pngStyle: PngStyle;
-    bgColor: string;
-    textColor: string;
-    borderColor: string;
-    blockColor: string;
-    showTitle: boolean;
-    showBookedSlots: boolean;
-    bookedStyle: 'strikethrough' | 'fade';
-    strikethroughColor: string;
-    strikethroughThickness: 'thin' | 'thick';
-    fontScale: number;
-    font: string;
-    language: 'zh' | 'en';
-    horizontalGap: number;
-    verticalGap: number;
-    showShadow: boolean;
-    exportViewMode: PngExportViewMode;
-    titleAlign: TitleAlign;
 }
 
 const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>(({
-    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign
+    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign, dayOffColor, closedColor, fullyBookedColor
 }, ref) => {
     
     const monthNames = language === 'zh' ? MONTH_NAMES : MONTH_NAMES_EN;
@@ -1488,6 +1553,15 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
         width: '800px',
         padding: '24px',
         boxSizing: 'border-box',
+    };
+    
+    const getStatusColor = (status: DayStatus): string => {
+        switch (status) {
+            case 'dayOff': return dayOffColor;
+            case 'closed': return closedColor;
+            case 'fullyBooked': return fullyBookedColor;
+            default: return textColor;
+        }
     };
     
     const getBlockStyles = (isCurrentMonth: boolean, isPlaceholderRow: boolean): React.CSSProperties => {
@@ -1559,14 +1633,13 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
         const currentYear = currentDate.getFullYear();
         
         return Object.keys(scheduleData)
-            .map(key => new Date(key))
-            .filter(date => 
+            .map(key => ({ key, date: new Date(key) }))
+            .filter(({ date }) => 
                 date.getFullYear() === currentYear &&
                 date.getMonth() === currentMonth &&
-                date.getTime() >= today.getTime() &&
-                scheduleData[formatDateKey(date)]?.length > 0
+                date.getTime() >= today.getTime()
             )
-            .sort((a, b) => a.getTime() - b.getTime());
+            .sort((a, b) => a.date.getTime() - b.date.getTime());
     }, [scheduleData, currentDate, today, exportViewMode]);
     
 
@@ -1576,12 +1649,17 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
             
             {exportViewMode === 'list' ? (
                 <div className="space-y-4">
-                    {listData.map(date => {
-                        const dateKey = formatDateKey(date);
-                        const slots = scheduleData[dateKey] || [];
-                        const finalSlots = showBookedSlots ? slots : slots.filter(s => s.state === 'available');
+                    {listData.map(({key: dateKey, date}) => {
+                        const dayData = scheduleData[dateKey];
+                        const effectiveStatus = getEffectiveStatus(dayData);
 
-                        if (finalSlots.length === 0) return null;
+                        if (effectiveStatus === 'empty') return null;
+                        
+                        if (effectiveStatus === 'available') {
+                            const slots = dayData?.slots || [];
+                            const hasVisibleSlots = showBookedSlots || slots.some(s => s.state === 'available');
+                            if (!hasVisibleSlots) return null;
+                        }
 
                         return (
                             <div key={dateKey} className="grid grid-cols-3 gap-4 items-start pb-4 border-b" style={{ borderColor: borderColor === 'transparent' ? '#e5e7eb' : borderColor }}>
@@ -1589,18 +1667,22 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                     {`${date.getMonth() + 1}/${date.getDate()} (${dayNames[date.getDay()]})`}
                                 </div>
                                 <div className="col-span-2 flex flex-wrap gap-x-3 gap-y-1">
-                                    {finalSlots.map(slot => {
-                                        const liStyle: React.CSSProperties = { color: textColor };
-                                        if (slot.state === 'booked') {
-                                            if (bookedStyle === 'fade') { liStyle.opacity = 0.3; } 
-                                            else if (bookedStyle === 'strikethrough') {
-                                                liStyle.textDecoration = 'line-through';
-                                                liStyle.textDecorationColor = strikethroughColor;
-                                                liStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
+                                    {effectiveStatus !== 'available' ? (
+                                        <span className="font-bold" style={{ color: getStatusColor(effectiveStatus) }}>{DAY_STATUS_TEXT_MAP[effectiveStatus]}</span>
+                                    ) : (
+                                        (dayData?.slots && (showBookedSlots ? dayData.slots : dayData.slots.filter(s => s.state === 'available')) || []).map(slot => {
+                                            const liStyle: React.CSSProperties = { color: textColor };
+                                            if (slot.state === 'booked') {
+                                                if (bookedStyle === 'fade') { liStyle.opacity = 0.3; } 
+                                                else if (bookedStyle === 'strikethrough') {
+                                                    liStyle.textDecoration = 'line-through';
+                                                    liStyle.textDecorationColor = strikethroughColor;
+                                                    liStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
+                                                }
                                             }
-                                        }
-                                        return <span key={slot.time} style={liStyle}>{slot.time}</span>;
-                                    })}
+                                            return <span key={slot.time} style={liStyle}>{slot.time}</span>;
+                                        })
+                                    )}
                                 </div>
                             </div>
                         );
@@ -1618,35 +1700,46 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                         const isPlaceholderRow = week.every(day => !day.isCurrentMonth);
                         return week.map((day, dayIndex) => {
                             const dateKey = formatDateKey(day.date);
-                            const slots = scheduleData[dateKey] || [];
-                            const finalSlots = showBookedSlots ? slots : slots.filter(s => s.state === 'available');
-                            const hasSlots = day.isCurrentMonth && finalSlots.length > 0;
+                            const dayData = scheduleData[dateKey];
+                            const effectiveStatus = getEffectiveStatus(dayData);
 
                             return (
                                 <div key={`${weekIndex}-${dayIndex}`} style={getBlockStyles(day.isCurrentMonth, isPlaceholderRow)}>
                                     <p className="font-bold" style={{ color: day.isCurrentMonth ? textColor : 'transparent' }}>
                                         {day.date.getDate()}
                                     </p>
-                                    {hasSlots && (
-                                        <ul className="space-y-1 mt-1 text-center">
-                                            {finalSlots.map(slot => {
-                                                const liStyle: React.CSSProperties = { color: textColor };
-                                                if (slot.state === 'booked') {
-                                                    if (bookedStyle === 'fade') {
-                                                        liStyle.opacity = 0.3;
-                                                    } else if (bookedStyle === 'strikethrough') {
-                                                        liStyle.textDecoration = 'line-through';
-                                                        liStyle.textDecorationColor = strikethroughColor;
-                                                        liStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
-                                                    }
-                                                }
-                                                return (
-                                                    <li key={slot.time} style={liStyle}>
-                                                      {slot.time}
-                                                    </li>
-                                                );
-                                            })}
-                                        </ul>
+                                    {day.isCurrentMonth && effectiveStatus !== 'available' && effectiveStatus !== 'empty' && (
+                                        <div className="flex-grow flex items-center justify-center">
+                                            <span className="font-bold" style={{ fontSize: '1.1em', color: getStatusColor(effectiveStatus) }}>{DAY_STATUS_TEXT_MAP[effectiveStatus]}</span>
+                                        </div>
+                                    )}
+                                    {day.isCurrentMonth && effectiveStatus === 'available' && dayData?.slots && dayData.slots.length > 0 && (
+                                        (() => {
+                                            const finalSlots = showBookedSlots ? dayData.slots : dayData.slots.filter(s => s.state === 'available');
+                                            if (finalSlots.length === 0) return null;
+                                            
+                                            return (
+                                                <ul className="space-y-1 mt-1 text-center">
+                                                    {finalSlots.map(slot => {
+                                                        const liStyle: React.CSSProperties = { color: textColor };
+                                                        if (slot.state === 'booked') {
+                                                            if (bookedStyle === 'fade') {
+                                                                liStyle.opacity = 0.3;
+                                                            } else if (bookedStyle === 'strikethrough') {
+                                                                liStyle.textDecoration = 'line-through';
+                                                                liStyle.textDecorationColor = strikethroughColor;
+                                                                liStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
+                                                            }
+                                                        }
+                                                        return (
+                                                            <li key={slot.time} style={liStyle}>
+                                                              {slot.time}
+                                                            </li>
+                                                        );
+                                                    })}
+                                                </ul>
+                                            );
+                                        })()
                                     )}
                                 </div>
                             );
@@ -1714,6 +1807,10 @@ const App: React.FC = () => {
         horizontalGap: 8,
         verticalGap: 8,
         titleAlign: 'center',
+        // UPDATED: Set defaults as requested
+        dayOffColor: '#6B7280', // Gray
+        closedColor: '#6B7280', // Gray
+        fullyBookedColor: '#EF4444', // Red
     });
 
     useEffect(() => {
@@ -1818,20 +1915,21 @@ const App: React.FC = () => {
         }
     };
     
-    const handleSlotEditorDone = (updatedDay: { date: Date, slots: Slot[] }, pastedDays: string[]) => {
+    const handleSlotEditorDone = (updatedDay: { date: Date, dayData: DayData }, pastedDays: string[]) => {
       const newSchedule = { ...scheduleData };
       const key = formatDateKey(updatedDay.date);
-      if (updatedDay.slots.length > 0) {
-        newSchedule[key] = updatedDay.slots;
-      } else {
+
+      if (updatedDay.dayData.status === 'available' && updatedDay.dayData.slots.length === 0) {
         delete newSchedule[key];
+      } else {
+        newSchedule[key] = updatedDay.dayData;
       }
       
       if(copiedSlots) {
         pastedDays.forEach(pastedKey => {
-            const pastedSlots = copiedSlots.map(slot => ({...slot, state: 'available'} as Slot));
+            const pastedSlots = copiedSlots.map(slot => ({...slot, state: 'available'}as Slot));
             if (pastedSlots.length > 0) {
-                newSchedule[pastedKey] = pastedSlots;
+                newSchedule[pastedKey] = { status: 'available', slots: pastedSlots };
             } else {
                 delete newSchedule[pastedKey];
             }
@@ -1843,14 +1941,17 @@ const App: React.FC = () => {
 
     const handleToggleSlotState = (date: Date, time: string) => {
         const dateKey = formatDateKey(date);
-        const daySlots = scheduleData[dateKey] || [];
+        const dayData = scheduleData[dateKey];
+        if (!dayData || dayData.status !== 'available') return;
+        
+        const daySlots = dayData.slots || [];
         const newSlots = daySlots.map(slot => {
             if (slot.time === time) {
                 return { ...slot, state: slot.state === 'available' ? 'booked' : 'available' } as Slot;
             }
             return slot;
         });
-        saveData({ ...scheduleData, [dateKey]: newSlots });
+        saveData({ ...scheduleData, [dateKey]: { ...dayData, slots: newSlots } });
     };
 
     const handleTitleChange = (newTitle: string) => {
@@ -1912,7 +2013,9 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-7 gap-1">
                     {calendarDays.map((day) => {
                         const dateKey = formatDateKey(day.date);
-                        const slots = scheduleData[dateKey] || [];
+                        const dayData = scheduleData[dateKey];
+                        const effectiveStatus = getEffectiveStatus(dayData);
+                        
                         return (
                             <div 
                                 key={day.date.toISOString()}
@@ -1922,10 +2025,15 @@ const App: React.FC = () => {
                                 <span className={`self-center p-2 text-sm font-semibold flex-shrink-0 ${!day.isCurrentMonth ? 'text-gray-400 dark:text-gray-600' : 'text-gray-800 dark:text-gray-200'}`}>
                                     {day.date.getDate()}
                                 </span>
-                                 {slots.length > 0 && day.isCurrentMonth && (
+                                {day.isCurrentMonth && effectiveStatus !== 'available' && effectiveStatus !== 'empty' && (
+                                    <div className="flex-grow flex items-center justify-center p-1">
+                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 text-center">{DAY_STATUS_TEXT_MAP[effectiveStatus]}</span>
+                                    </div>
+                                )}
+                                {dayData?.slots && dayData.slots.length > 0 && day.isCurrentMonth && effectiveStatus === 'available' && (
                                     <div className="px-1 pb-1 mt-auto flex-grow">
                                       <div className="flex flex-wrap gap-1 justify-center">
-                                        {slots.map(slot => (
+                                        {dayData.slots.map(slot => (
                                             <div 
                                                 key={slot.time}
                                                 onClick={(e) => { e.stopPropagation(); handleToggleSlotState(day.date, slot.time); }}
@@ -1937,7 +2045,7 @@ const App: React.FC = () => {
                                         ))}
                                        </div>
                                     </div>
-                                 )}
+                                )}
                             </div>
                         );
                     })}
