@@ -339,7 +339,10 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
         const initialStatus = effectiveStatus === 'empty' ? 'available' : effectiveStatus;
         
         setLocalStatus(initialStatus);
-        setLocalSlots(new Map(dayData?.slots.map(slot => [slot.time, slot]) || []));
+        
+        // FIX: Add a safety check to ensure .map is not called on undefined.
+        // `(dayData?.slots || [])` ensures we always have an array to map over.
+        setLocalSlots(new Map((dayData?.slots || []).map(slot => [slot.time, slot])));
 
         // Reset other modal-specific states
         setCopySuccess(false);
