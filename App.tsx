@@ -13,18 +13,27 @@ declare const htmlToImage: {
 };
 
 const FONT_OPTIONS = [
+    // --- 核心繁中字體 (Core TC Fonts) ---
     { id: "'Noto Sans TC', sans-serif", name: '思源黑體', urlValue: 'Noto+Sans+TC:wght@300;400;700' },
     { id: "'Noto Serif TC', serif", name: '思源宋體', urlValue: 'Noto+Serif+TC:wght@300;400;700' },
     { id: "'LXGW WenKai TC', cursive", name: '霞鶩文楷', urlValue: 'LXGW+WenKai+TC:wght@300;400;700' },
+    
+    // --- 藝術/手寫/書法風格 (Artistic/Handwriting/Calligraphy) ---
+    { id: "'Yuji Syuku', serif", name: '佑字肅', urlValue: 'Yuji+Syuku' },
+    { id: "'Hina Mincho', serif", name: '雛明朝', urlValue: 'Hina+Mincho' },
+    
+    // --- 設計感/獨特風格 (Unique/Display) ---
+    { id: "'Zen Dots', cursive", name: '禪點體', urlValue: 'Zen+Dots' },
+    { id: "'DotGothic16', sans-serif", name: '點陣哥特體', urlValue: 'DotGothic16' },
+    { id: "'Reggae One', cursive", name: '雷鬼體', urlValue: 'Reggae+One' },
+    { id: "'Rampart One', cursive", name: '城牆體', urlValue: 'Rampart+One' },
+    { id: "'Kaisei Opti', serif", name: '解星光學體', urlValue: 'Kaisei+Opti:wght@400;700' },
+
+    // --- 圓體與可愛風格 (Rounded/Cute) ---
     { id: "'M PLUS Rounded 1c', sans-serif", name: 'M+ 圓體', urlValue: 'M+PLUS+Rounded+1c:wght@300;400;700' },
-    { id: "'Ma Shan Zheng', cursive", name: '馬善政毛筆', urlValue: 'Ma+Shan+Zheng' },
-    { id: "'Zen Maru Gothic', sans-serif", name: '日式圓體', urlValue: 'Zen+Maru+Gothic:wght@400;700' },
-    { id: "'Shippori Mincho', serif", name: '日式明體', urlValue: 'Shippori+Mincho:wght@400;700' },
-    { id: "'Long Cang', cursive", name: '龍藏書法體', urlValue: 'Long+Cang' },
-    { id: "'Zhi Mang Xing', cursive", name: '植芒行書', urlValue: 'Zhi+Mang+Xing' },
-    { id: "'Pixelify Sans', sans-serif", name: '像素字體', urlValue: 'Pixelify+Sans:wght@400;700' },
-    { id: "'Yusei Magic', sans-serif", name: '可愛魔法體', urlValue: 'Yusei+Magic' },
-    { id: "'RocknRoll One', sans-serif", name: '搖滾體', urlValue: 'RocknRoll+One' },
+    { id: "'Zen Maru Gothic', sans-serif", name: '禪丸哥特體', urlValue: 'Zen+Maru+Gothic:wght@400;700' },
+
+    // --- 高品質英文字體 (High-Quality English Fonts) ---
     { id: "'Cormorant Garamond', serif", name: 'Cormorant Garamond', urlValue: 'Cormorant+Garamond:wght@400;700' },
     { id: "'Playfair Display', serif", name: 'Playfair Display', urlValue: 'Playfair+Display:wght@400;700' },
     { id: "'Lobster', cursive", name: 'Lobster', urlValue: 'Lobster' },
@@ -1163,41 +1172,26 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             )}
 
             
-            {(isExporting || exportStage === 'completed') && (
-                <div className="absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 p-4">
-                     {exportStage === 'completed' && (
-                        <>
-                            <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-2 rounded-full z-10">
-                                <CloseIcon />
-                            </button>
-                            <button 
-                                onClick={onClose} 
-                                className="absolute bottom-4 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:underline"
-                                style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
-                            >
-                                關閉
-                            </button>
-                        </>
-                    )}
+            <div className={`absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex-col items-center justify-center z-20 p-4 ${isExporting || exportStage === 'completed' ? 'flex' : 'hidden'}`}>
+                 <div className="relative w-16 h-16 flex items-center justify-center">
+                    <DownloadIcon
+                        className={`w-12 h-12 text-blue-600 transition-all duration-300 
+                            ${isExporting ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-50'}`
+                        }
+                    />
+                    <CheckIcon
+                        className={`w-16 h-16 text-green-500 absolute transition-all duration-300 delay-200
+                            ${exportStage === 'completed' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`
+                        }
+                    />
+                </div>
 
-                    <div className="relative w-16 h-16 flex items-center justify-center">
-                        <DownloadIcon
-                            className={`w-12 h-12 text-blue-600 transition-all duration-300 
-                                ${isExporting ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-50'}`
-                            }
-                        />
-                        <CheckIcon
-                            className={`w-16 h-16 text-green-500 absolute transition-all duration-300 delay-200
-                                ${exportStage === 'completed' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`
-                            }
-                        />
-                    </div>
-
-                    <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">
-                        {exportStage === 'completed' ? '成功！圖片已準備就緒。' : loadingMessage}
-                    </p>
-                    
-                    <div className={`flex flex-col sm:flex-row gap-3 w-full max-w-sm mt-6 transition-opacity duration-500 delay-500 ${exportStage === 'completed' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">
+                    {exportStage === 'completed' ? '成功！圖片已準備就緒。' : loadingMessage}
+                </p>
+                
+                 {exportStage === 'completed' && (
+                    <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm mt-6">
                         <button onClick={handleOpenInNewTab} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">
                             在新分頁開啟
                         </button>
@@ -1205,16 +1199,16 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                             直接下載 .png
                         </button>
                     </div>
+                 )}
 
-                    <AdSlot className="mt-6 w-full" allowedHostnames={['your.app', 'your-short.link', 'bit.ly']} />
-                </div>
-            )}
+                <AdSlot className="mt-6 w-full" allowedHostnames={['your.app', 'your-short.link', 'bit.ly']} />
+            </div>
 
             <div className={`flex flex-col lg:flex-row gap-6 items-start ${exportStage !== 'configuring' ? 'invisible' : ''}`}>
                 <div className="w-full lg:w-1/2 lg:sticky lg:top-0">
                      <div className="space-y-2">
                         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">預覽</h3>
-                        <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden max-h-[25vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                        <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden max-h-[25vh] lg:max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                             <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out, height 0.2s ease-out' }}>
                                 <PngExportContent ref={exportRef} {...propsForContent} />
                             </div>
@@ -1529,7 +1523,7 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
 
     return (
         <div ref={ref} style={containerStyles}>
-            {showTitle && <h1 className="text-3xl font-bold mb-4" style={{ color: textColor, marginBottom: '3rem', textAlign: titleAlign }}>{title}</h1>}
+            {showTitle && <h1 className="text-3xl font-bold" style={{ color: textColor, marginBottom: '3rem', textAlign: titleAlign }}>{title}</h1>}
             
             {exportViewMode === 'list' ? (
                 <div className="space-y-4">
@@ -1585,7 +1579,7 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                         {day.date.getDate()}
                                     </p>
                                     {hasSlots && (
-                                        <ul className="space-y-1 mt-1">
+                                        <ul className="space-y-1 mt-1 text-center">
                                             {finalSlots.map(slot => {
                                                 const liStyle: React.CSSProperties = { color: textColor };
                                                 if (slot.state === 'booked') {
@@ -1634,6 +1628,22 @@ const App: React.FC = () => {
     const [title, setTitle] = useState("可預約時段");
     const [copiedSlots, setCopiedSlots] = useState<Slot[] | null>(null);
     const [user, setUser] = useState<User | null>(null);
+    const footerRef = useRef<HTMLElement>(null);
+    const [footerHeight, setFooterHeight] = useState(0);
+
+    useLayoutEffect(() => {
+        const node = footerRef.current;
+        if (!node) return;
+        
+        const observer = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                setFooterHeight(entry.target.getBoundingClientRect().height);
+            }
+        });
+        
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, []);
 
     // Lifted state for PngExportModal settings persistence
     const [pngSettings, setPngSettings] = useState<PngSettingsState>({
@@ -1827,7 +1837,7 @@ const App: React.FC = () => {
                 className="flex-grow container mx-auto px-4"
                 style={{ 
                     paddingTop: `calc(4.5rem + env(safe-area-inset-top))`,
-                    paddingBottom: `calc(8rem + env(safe-area-inset-bottom))`
+                    paddingBottom: footerHeight ? `${footerHeight}px` : `8rem`
                 }}
             >
                 <div className="flex items-center justify-between mb-4">
@@ -1886,6 +1896,7 @@ const App: React.FC = () => {
             </main>
             
             <footer 
+                ref={footerRef}
                 className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-white dark:from-gray-800 to-white/0 dark:to-gray-800/0 backdrop-blur-sm pt-8 pb-4"
                 style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
             >
