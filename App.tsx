@@ -893,18 +893,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
     }, [isOpen, title]);
     
-    const textToRequestForFont = useMemo(() => {
-        const charSet = new Set(
-            (
-                MONTH_NAMES.join('') + 
-                DAY_NAMES.join('') +
-                localTitle
-            ).split('')
-        );
-        "0123456789:".split('').forEach(c => charSet.add(c));
-        return Array.from(charSet).join('');
-    }, [localTitle]);
-
     const propsForContent = useMemo(() => ({
         scheduleData, title: localTitle, calendarDays, currentDate,
         ...pngSettings,
@@ -971,7 +959,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap&text=${encodeURIComponent(textToRequestForFont)}`;
+        // CRITICAL FIX: Removed the `&text=...` parameter. This was the root cause
+        // of art fonts failing to load in previews on mobile. By requesting the
+        // full font file, we ensure previews are accurate and the font is properly
+        // cached for the export process, eliminating the race condition.
+        link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap`;
 
         link.onload = () => {
             setFontStatuses(prev => ({ ...prev, [id]: 'loaded' }));
@@ -984,7 +976,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         };
         document.head.appendChild(link);
       });
-    }, [fontStatuses, textToRequestForFont]);
+    }, [fontStatuses]);
 
     useEffect(() => {
         if (isOpen) {
@@ -1219,7 +1211,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             )}
 
             
-            <div className={`absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 ${isExporting || exportStage === 'completed' ? 'flex' : 'hidden'}`}>
+            <div className={`absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex-col items-center justify-center p-4 ${isExporting || exportStage === 'completed' ? 'flex' : 'hidden'}`}>
                 <div className="w-full flex flex-col items-center">
                  <div className="relative w-16 h-16 flex items-center justify-center">
                     <DownloadIcon
@@ -1239,17 +1231,18 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 </p>
                 
                  {exportStage === 'completed' && (
-                    <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm mt-6">
-                        <button onClick={handleOpenInNewTab} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">
-                            在新分頁開啟
-                        </button>
-                        <button onClick={handleDownloadFile} className="w-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-                            直接下載 .png
-                        </button>
+                    <div className="w-full flex flex-col items-center">
+                        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm mt-6">
+                            <button onClick={handleOpenInNewTab} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                                在新分頁開啟
+                            </button>
+                            <button onClick={handleDownloadFile} className="w-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                                直接下載 .png
+                            </button>
+                        </div>
+                        <AdSlot className="mt-6 w-full" allowedHostnames={['your.app', 'your-short.link', 'bit.ly']} />
                     </div>
                  )}
-
-                <AdSlot className="mt-6 w-full" allowedHostnames={['your.app', 'your-short.link', 'bit.ly']} />
                 </div>
             </div>
 
