@@ -5,6 +5,7 @@ import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, CloseIcon, TrashIcon, 
 import { auth, db, googleProvider, isFirebaseConfigured } from './firebaseClient';
 import { AdSlot } from './components/AdSlot';
 import { embedFontForExport } from './fontUtils';
+import { getPrimaryFamily } from './fonts';
 
 
 // This declaration is necessary because html-to-image is loaded from a CDN.
@@ -136,7 +137,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerCon
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className={`relative bg-white dark:bg-gray-800 w-full h-full xl:rounded-2xl xl:shadow-2xl xl:h-auto xl:max-h-[calc(100vh-4rem)] flex flex-col transition-transform duration-300 ${isOpen ? 'translate-y-0' : 'translate-y-full xl:translate-y-4'} ${modalClassName || 'xl:max-w-lg'}`}
+        className={`relative bg-white dark:bg-gray-800 w-full h-[100dvh] xl:rounded-2xl xl:shadow-2xl xl:h-auto xl:max-h-[calc(100vh-4rem)] flex flex-col transition-transform duration-300 ${isOpen ? 'translate-y-0' : 'translate-y-full xl:translate-y-4'} ${modalClassName || 'xl:max-w-lg'}`}
       >
         
         <header 
@@ -1012,7 +1013,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     }, [fontStatuses, loadFont, updateSetting]);
 
 
-    // STAGE 1: Embed Font
+    // STAGE 1: Embed Font and wait for it to be ready
     useEffect(() => {
         const performFontEmbedding = async () => {
             if (exportStage !== 'embedding_font') return;
@@ -1027,9 +1028,23 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             }
             
             try {
+                // 1. Get the self-contained CSS with base64 font data
                 const css = await embedFontForExport(selectedFont);
+
+                // 2. Inject this CSS into the main document to make it available to the browser's font engine
+                const styleElement = document.createElement('style');
+                styleElement.id = 'temp-font-for-export';
+                styleElement.textContent = css;
+                document.head.appendChild(styleElement);
+
+                // 3. Use document.fonts.load() to wait until the browser has actually parsed and loaded the font
+                const fontFamilyToLoad = getPrimaryFamily(selectedFont.id);
+                await document.fonts.load(`16px "${fontFamilyToLoad}"`);
+
+                // 4. Now that the font is ready, store the CSS for html-to-image and proceed
                 setEmbeddedFontCss(css);
                 setExportStage('generating_image');
+
             } catch (error) {
                 console.error('Font embedding failed:', error);
                 alert('嵌入字體時發生錯誤，請檢查您的網路連線並重試。');
@@ -1075,6 +1090,16 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         return () => clearTimeout(timeoutId);
 
     }, [exportStage, embeddedFontCss, bgColor]);
+
+    // Cleanup effect for the injected style tag
+    useEffect(() => {
+        if (exportStage === 'completed' || exportStage === 'configuring') {
+            const styleElement = document.getElementById('temp-font-for-export');
+            if (styleElement) {
+                styleElement.remove();
+            }
+        }
+    }, [exportStage]);
 
 
     const handleStartExport = useCallback(() => {
@@ -1195,7 +1220,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
 
             
             <div className={`absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 ${isExporting || exportStage === 'completed' ? 'flex' : 'hidden'}`}>
-                <div className="z-10 w-full flex flex-col items-center">
+                <div className="w-full flex flex-col items-center">
                  <div className="relative w-16 h-16 flex items-center justify-center">
                     <DownloadIcon
                         className={`w-12 h-12 text-blue-600 transition-all duration-300 
