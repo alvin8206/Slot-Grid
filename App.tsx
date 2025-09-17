@@ -75,11 +75,12 @@ const PRESET_COLORS = {
     ],
 };
 
-const DAY_STATUS_TEXT_MAP: Record<DayStatus, string> = {
+const DAY_STATUS_TEXT_MAP: Record<DayStatus | 'empty', string> = {
   available: '可預約',
   dayOff: '休假',
   closed: '公休',
-  fullyBooked: '已額滿'
+  fullyBooked: '已額滿',
+  empty: '' // Empty status should not produce text
 };
 
 
@@ -100,30 +101,30 @@ const applyStrikethrough = (text: string) => text.split('').join('\u0336') + '\u
  * If a day is 'available' but all its slots are 'booked', it's considered 'fullyBooked'.
  */
 const getEffectiveStatus = (dayData: DayData | undefined): DayStatus | 'empty' => {
-  // FIX: Make the function more robust to avoid crashes with malformed or empty data objects.
-  // 1. Handle the case where dayData is null or undefined first.
-  if (!dayData) {
+  // FIX: This is the critical fix. This check now robustly handles `undefined`, `null`, and empty objects `{}`.
+  if (!dayData || Object.keys(dayData).length === 0) {
     return 'empty';
   }
+  
+  const { status, slots } = dayData;
 
-  // 2. If status is already set to something other than available, respect it.
-  if (dayData.status !== 'available') {
-    return dayData.status;
+  // If status is explicitly set to something other than available, respect it.
+  if (status && status !== 'available') {
+    return status;
   }
   
-  const { slots } = dayData;
-
-  // 3. If it's 'available' but has no slots (or slots is not an array), it's empty.
+  // From here, we're dealing with an 'available' status or cases where status is missing.
+  // If it's considered 'available' but has no slots, it's effectively empty for display.
   if (!slots || slots.length === 0) {
     return 'empty';
   }
 
-  // 4. THE CORE LOGIC: If status is 'available' and all slots are 'booked', it's effectively 'fullyBooked'.
+  // THE CORE LOGIC: If status is 'available' and all slots are 'booked', it's effectively 'fullyBooked'.
   if (slots.every(slot => slot.state === 'booked')) {
     return 'fullyBooked';
   }
 
-  // 5. Otherwise, it's still available.
+  // Otherwise, it's still available.
   return 'available';
 };
 
@@ -329,21 +330,21 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
   const [isMultiPasteExpanded, setIsMultiPasteExpanded] = useState(false);
   const [lastSelectedDateKey, setLastSelectedDateKey] = useState<string | null>(null);
 
+  // Memoize the effective status to avoid re-calculating on every render inside the modal
+  const effectiveStatus = useMemo(() => {
+    if (!selectedDay) return 'empty';
+    const dayData = scheduleData[formatDateKey(selectedDay)];
+    return getEffectiveStatus(dayData);
+  }, [selectedDay, scheduleData]);
+
   useEffect(() => {
     if (selectedDay) {
-        const dateKey = formatDateKey(selectedDay);
-        const dayData = scheduleData[dateKey]; // Can be undefined
+        const dayData = scheduleData[formatDateKey(selectedDay)];
         
-        // Use the smart helper function to determine the true initial state
-        const effectiveStatus = getEffectiveStatus(dayData);
-
-        // If the day is effectively empty, treat it as 'available' for editing purposes.
+        // If the day is effectively empty, we want the editor to start in a clean 'available' state.
         const initialStatus = effectiveStatus === 'empty' ? 'available' : effectiveStatus;
-        
         setLocalStatus(initialStatus);
         
-        // FIX: Add a safety check to ensure .map is not called on undefined.
-        // `(dayData?.slots || [])` ensures we always have an array to map over.
         setLocalSlots(new Map((dayData?.slots || []).map(slot => [slot.time, slot])));
 
         // Reset other modal-specific states
@@ -352,7 +353,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
         setIsMultiPasteExpanded(false);
         setLastSelectedDateKey(null);
     }
-  }, [selectedDay, scheduleData, isOpen]);
+  }, [selectedDay, scheduleData, isOpen, effectiveStatus]);
 
   const getSortedSlots = (slotsMap: Map<string, Slot>): Slot[] => {
     return Array.from(slotsMap.values()).sort((a, b) => a.time.localeCompare(b.time));
@@ -697,9 +698,11 @@ const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, sche
             const day = date.getDate().toString();
             const dayOfWeek = language === 'zh' ? DAY_NAMES[date.getDay()] : DAY_NAMES_EN[date.getDay()];
             const dateString = includeYear ? `${year}/${month}/${day}` : `${month}/${day}`;
+            
+            const statusText = DAY_STATUS_TEXT_MAP[effectiveStatus];
 
             if (effectiveStatus !== 'available') {
-                text += `${dateString} (${dayOfWeek}): ${DAY_STATUS_TEXT_MAP[effectiveStatus]}\n`;
+                text += `${dateString} (${dayOfWeek}): ${statusText}\n`;
                 if (layout === 'default') text += '\n';
                 return;
             }
