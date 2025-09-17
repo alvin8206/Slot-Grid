@@ -1139,6 +1139,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             const fontFamilyToLoad = getPrimaryFamily(selectedFont.id);
             await document.fonts.load(`16px "${fontFamilyToLoad}"`);
 
+            // Force a small delay. Some rendering engines, particularly on mobile (iOS),
+            // may need an extra moment to apply the newly loaded font, even after the
+            // document.fonts.load promise resolves. This helps prevent a race condition.
+            await new Promise(resolve => setTimeout(resolve, 150));
+
             // STEP 4: Generate the image, providing the CSS to the library for maximum reliability.
             setLoadingMessage('正在繪製高解析度圖片...');
             const dataUrl = await htmlToImage.toPng(exportNode, {
