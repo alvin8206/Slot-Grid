@@ -14,7 +14,7 @@ declare const htmlToImage: {
 
 const FONT_CATEGORIES = [
     {
-        name: '推薦中文字體',
+        name: '常用中文字體',
         fonts: [
             { id: "'Noto Sans TC', sans-serif", name: '思源黑體', urlValue: 'Noto+Sans+TC:wght@300;400;700' },
             { id: "'Noto Serif TC', serif", name: '思源宋體', urlValue: 'Noto+Serif+TC:wght@300;400;700' },
@@ -22,7 +22,7 @@ const FONT_CATEGORIES = [
         ]
     },
     {
-        name: '藝術字體',
+        name: '中文藝術字體',
         fonts: [
             { id: "'Yuji Syuku', serif", name: '佑字肅', urlValue: 'Yuji+Syuku' },
             { id: "'Hina Mincho', serif", name: '雛明朝', urlValue: 'Hina+Mincho' },
@@ -892,21 +892,17 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
     }, [isOpen, title]);
     
-    // --- FIX: Collect all necessary characters for PNG export, but keep it concise to avoid URL length issues ---
-    const textToRequestForPng = useMemo(() => {
+    const textToRequestForFont = useMemo(() => {
         const charSet = new Set(
             (
                 MONTH_NAMES.join('') + 
-                MONTH_NAMES_EN.join('') +
                 DAY_NAMES.join('') +
-                DAY_NAMES_EN.join('') +
-                localTitle +
-                Object.keys(scheduleData).flatMap(key => scheduleData[key].map(s => s.time)).join('')
+                localTitle
             ).split('')
         );
-        "0123456789:/(),-".split('').forEach(c => charSet.add(c));
+        "0123456789:".split('').forEach(c => charSet.add(c));
         return Array.from(charSet).join('');
-    }, [localTitle, scheduleData]);
+    }, [localTitle]);
 
     const propsForContent = useMemo(() => ({
         scheduleData, title: localTitle, calendarDays, currentDate,
@@ -972,12 +968,9 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         
         setFontStatuses(prev => ({ ...prev, [id]: 'loading' }));
         
-        // Use the comprehensive character set for preview as well
-        const textToRequest = textToRequestForPng;
-
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap&text=${encodeURIComponent(textToRequest)}`;
+        link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap&text=${encodeURIComponent(textToRequestForFont)}`;
 
         link.onload = () => {
             setFontStatuses(prev => ({ ...prev, [id]: 'loaded' }));
@@ -990,7 +983,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         };
         document.head.appendChild(link);
       });
-    }, [fontStatuses, textToRequestForPng]);
+    }, [fontStatuses, textToRequestForFont]);
 
     useEffect(() => {
         if (isOpen) {
@@ -1012,11 +1005,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         try {
             if (currentStatus !== 'loaded') await loadFont(fontOption);
             // Asynchronously warm up the cache for export, fire-and-forget
-            embedFontForExport(fontOption, textToRequestForPng);
+            embedFontForExport(fontOption);
         } catch (error) {
             alert(`無法載入字體：${fontOption.name}。請稍後再試。`);
         }
-    }, [fontStatuses, loadFont, updateSetting, textToRequestForPng]);
+    }, [fontStatuses, loadFont, updateSetting]);
 
 
     // STAGE 1: Embed Font
@@ -1034,7 +1027,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             }
             
             try {
-                const css = await embedFontForExport(selectedFont, textToRequestForPng);
+                const css = await embedFontForExport(selectedFont);
                 setEmbeddedFontCss(css);
                 setExportStage('generating_image');
             } catch (error) {
@@ -1045,7 +1038,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         };
 
         performFontEmbedding();
-    }, [exportStage, font, textToRequestForPng]);
+    }, [exportStage, font]);
     
     // STAGE 2: Generate Image
     useEffect(() => {
@@ -1201,7 +1194,8 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             )}
 
             
-            <div className={`absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex-col items-center justify-center z-20 p-4 ${isExporting || exportStage === 'completed' ? 'flex' : 'hidden'}`}>
+            <div className={`absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 ${isExporting || exportStage === 'completed' ? 'flex' : 'hidden'}`}>
+                <div className="z-10 w-full flex flex-col items-center">
                  <div className="relative w-16 h-16 flex items-center justify-center">
                     <DownloadIcon
                         className={`w-12 h-12 text-blue-600 transition-all duration-300 
@@ -1215,7 +1209,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                     />
                 </div>
 
-                <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">
+                <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200 text-center">
                     {exportStage === 'completed' ? '成功！圖片已準備就緒。' : loadingMessage}
                 </p>
                 
@@ -1231,6 +1225,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                  )}
 
                 <AdSlot className="mt-6 w-full" allowedHostnames={['your.app', 'your-short.link', 'bit.ly']} />
+                </div>
             </div>
 
             <div className={`flex flex-col lg:flex-row gap-6 items-start ${exportStage !== 'configuring' ? 'invisible' : ''}`}>

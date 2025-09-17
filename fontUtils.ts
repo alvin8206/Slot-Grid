@@ -39,10 +39,9 @@ async function urlToBase64(url: string): Promise<string> {
  * 這次的實作方式是下載完整的 Google Fonts CSS，然後將其中的所有字體 URL 替換為 Base64 Data URL。
  * 帶有 Promise 快取，確保同一個字體只會被處理一次。
  * @param fontOption 要嵌入的字體選項
- * @param textToRequest (此參數在此版本中被忽略，以提高可靠性)
  * @returns 包含 @font-face 的完整 CSS 規則字串
  */
-export function embedFontForExport(fontOption: FontOption, textToRequest: string): Promise<string> {
+export function embedFontForExport(fontOption: FontOption): Promise<string> {
   const { id, urlValue } = fontOption;
 
   // 步驟 1: 快取鍵現在只基於字體 ID，因為我們請求的是完整的字體檔。
