@@ -100,28 +100,30 @@ const applyStrikethrough = (text: string) => text.split('').join('\u0336') + '\u
  * If a day is 'available' but all its slots are 'booked', it's considered 'fullyBooked'.
  */
 const getEffectiveStatus = (dayData: DayData | undefined): DayStatus | 'empty' => {
-  if (!dayData || (!dayData.slots?.length && dayData.status === 'available')) {
+  // FIX: Make the function more robust to avoid crashes with malformed or empty data objects.
+  // 1. Handle the case where dayData is null or undefined first.
+  if (!dayData) {
     return 'empty';
   }
 
-  // If status is already set to something other than available, respect it.
+  // 2. If status is already set to something other than available, respect it.
   if (dayData.status !== 'available') {
     return dayData.status;
   }
   
   const { slots } = dayData;
 
-  // If it's 'available' but has no slots, it's just empty (and will be treated as available for editing).
+  // 3. If it's 'available' but has no slots (or slots is not an array), it's empty.
   if (!slots || slots.length === 0) {
     return 'empty';
   }
 
-  // THE CORE LOGIC: If status is 'available' and all slots are 'booked', it's effectively 'fullyBooked'.
+  // 4. THE CORE LOGIC: If status is 'available' and all slots are 'booked', it's effectively 'fullyBooked'.
   if (slots.every(slot => slot.state === 'booked')) {
     return 'fullyBooked';
   }
 
-  // Otherwise, it's still available.
+  // 5. Otherwise, it's still available.
   return 'available';
 };
 
@@ -395,7 +397,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
   const handlePaste = () => {
     if (copiedSlots) {
       setLocalStatus('available');
-      const newSlots = new Map<string, Slot>(copiedSlots.map(slot => [slot.time, {...slot, state: 'available'} as Slot]));
+      const newSlots = new Map<string, Slot>(copiedSlots.map(slot => [slot.time, {...slot, state: 'available'}as Slot]));
       handleSlotUpdate(newSlots);
     }
   };
