@@ -1,3 +1,5 @@
+import { getPrimaryFamily } from './fonts';
+
 // utils/fontUtils.ts
 
 interface FontOption {
@@ -56,6 +58,7 @@ export function embedFontForExport(fontOption: FontOption): Promise<string> {
       // 步驟 2a: 抓取完整的 Google Fonts CSS 檔案
       const response = await fetch(cssUrl, {
         headers: {
+          // 使用標準的 User-Agent，讓 Google Fonts 回傳 woff2 格式
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         },
       });
@@ -70,7 +73,6 @@ export function embedFontForExport(fontOption: FontOption): Promise<string> {
       const uniqueFontUrls = [...new Set(fontUrls)];
 
       if (uniqueFontUrls.length === 0) {
-        // 如果沒有找到 woff2，可能代表字體 CSS 格式有變，或此字體不提供 woff2
         console.warn(`No .woff2 URLs found for font ${fontOption.name}. Falling back to @import.`);
         return `@import url('${cssUrl}');`;
       }
@@ -94,7 +96,6 @@ export function embedFontForExport(fontOption: FontOption): Promise<string> {
 
     } catch (error) {
       console.error(`Font embedding process failed for ${fontOption.name}:`, error);
-      // 如果任何一步失敗，就從快取中移除失敗的 Promise，並退回到較不可靠但可能成功的 @import 方案
       fontCssCache.delete(id);
       return `@import url('${cssUrl}');`;
     }
