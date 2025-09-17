@@ -12,41 +12,50 @@ declare const htmlToImage: {
   toPng: <T extends HTMLElement>(node: T, options?: object) => Promise<string>;
 };
 
-const FONT_OPTIONS = [
-    // --- 核心繁中字體 (Core TC Fonts) ---
-    { id: "'Noto Sans TC', sans-serif", name: '思源黑體', urlValue: 'Noto+Sans+TC:wght@300;400;700' },
-    { id: "'Noto Serif TC', serif", name: '思源宋體', urlValue: 'Noto+Serif+TC:wght@300;400;700' },
-    { id: "'LXGW WenKai TC', cursive", name: '霞鶩文楷', urlValue: 'LXGW+WenKai+TC:wght@300;400;700' },
-    
-    // --- 藝術/手寫/書法風格 (Artistic/Handwriting/Calligraphy) ---
-    { id: "'Yuji Syuku', serif", name: '佑字肅', urlValue: 'Yuji+Syuku' },
-    { id: "'Hina Mincho', serif", name: '雛明朝', urlValue: 'Hina+Mincho' },
-    
-    // --- 設計感/獨特風格 (Unique/Display) ---
-    { id: "'Zen Dots', cursive", name: '禪點體', urlValue: 'Zen+Dots' },
-    { id: "'DotGothic16', sans-serif", name: '點陣哥特體', urlValue: 'DotGothic16' },
-    { id: "'Reggae One', cursive", name: '雷鬼體', urlValue: 'Reggae+One' },
-    { id: "'Rampart One', cursive", name: '城牆體', urlValue: 'Rampart+One' },
-    { id: "'Kaisei Opti', serif", name: '解星光學體', urlValue: 'Kaisei+Opti:wght@400;700' },
-
-    // --- 圓體與可愛風格 (Rounded/Cute) ---
-    { id: "'M PLUS Rounded 1c', sans-serif", name: 'M+ 圓體', urlValue: 'M+PLUS+Rounded+1c:wght@300;400;700' },
-    { id: "'Zen Maru Gothic', sans-serif", name: '禪丸哥特體', urlValue: 'Zen+Maru+Gothic:wght@400;700' },
-
-    // --- 高品質英文字體 (High-Quality English Fonts) ---
-    { id: "'Cormorant Garamond', serif", name: 'Cormorant Garamond', urlValue: 'Cormorant+Garamond:wght@400;700' },
-    { id: "'Playfair Display', serif", name: 'Playfair Display', urlValue: 'Playfair+Display:wght@400;700' },
-    { id: "'Lobster', cursive", name: 'Lobster', urlValue: 'Lobster' },
-    { id: "'Pacifico', cursive", name: 'Pacifico', urlValue: 'Pacifico' },
-    { id: "'Bebas Neue', sans-serif", name: 'Bebas Neue', urlValue: 'Bebas+Neue' },
-    { id: "'Space Mono', monospace", name: 'Space Mono', urlValue: 'Space+Mono:wght@400;700' },
-    { id: "'Roboto', sans-serif", name: 'Roboto', urlValue: 'Roboto:wght@300;400;700' },
-    { id: "'Lato', sans-serif", name: 'Lato', urlValue: 'Lato:wght@300;400;700' },
-    { id: "'Montserrat', sans-serif", name: 'Montserrat', urlValue: 'Montserrat:wght@300;400;700' },
-    { id: "'Open Sans', sans-serif", name: 'Open Sans', urlValue: 'Open+Sans:wght@300;400;700' },
-    { id: "'Poppins', sans-serif", name: 'Poppins', urlValue: 'Poppins:wght@300;400;700' },
-    { id: "'Raleway', sans-serif", name: 'Raleway', urlValue: 'Raleway:wght@300;400;700' },
+const FONT_CATEGORIES = [
+    {
+        name: '推薦中文字體',
+        fonts: [
+            { id: "'Noto Sans TC', sans-serif", name: '思源黑體', urlValue: 'Noto+Sans+TC:wght@300;400;700' },
+            { id: "'Noto Serif TC', serif", name: '思源宋體', urlValue: 'Noto+Serif+TC:wght@300;400;700' },
+            { id: "'LXGW WenKai TC', cursive", name: '霞鶩文楷', urlValue: 'LXGW+WenKai+TC:wght@300;400;700' },
+        ]
+    },
+    {
+        name: '藝術字體',
+        fonts: [
+            { id: "'Yuji Syuku', serif", name: '佑字肅', urlValue: 'Yuji+Syuku' },
+            { id: "'Hina Mincho', serif", name: '雛明朝', urlValue: 'Hina+Mincho' },
+            { id: "'Zen Dots', cursive", name: '禪點體', urlValue: 'Zen+Dots' },
+            { id: "'DotGothic16', sans-serif", name: '點陣哥特體', urlValue: 'DotGothic16' },
+            { id: "'Reggae One', cursive", name: '雷鬼體', urlValue: 'Reggae+One' },
+            { id: "'Rampart One', cursive", name: '城牆體', urlValue: 'Rampart+One' },
+            { id: "'Kaisei Opti', serif", name: '解星光學體', urlValue: 'Kaisei+Opti:wght@400;700' },
+            { id: "'M PLUS Rounded 1c', sans-serif", name: 'M+ 圓體', urlValue: 'M+PLUS+Rounded+1c:wght@300;400;700' },
+            { id: "'Zen Maru Gothic', sans-serif", name: '禪丸哥特體', urlValue: 'Zen+Maru+Gothic:wght@400;700' },
+        ]
+    },
+    {
+        name: '英文字體 (僅適用英文)',
+        fonts: [
+            { id: "'Cormorant Garamond', serif", name: 'Cormorant Garamond', urlValue: 'Cormorant+Garamond:wght@400;700' },
+            { id: "'Playfair Display', serif", name: 'Playfair Display', urlValue: 'Playfair+Display:wght@400;700' },
+            { id: "'Lobster', cursive", name: 'Lobster', urlValue: 'Lobster' },
+            { id: "'Pacifico', cursive", name: 'Pacifico', urlValue: 'Pacifico' },
+            { id: "'Bebas Neue', sans-serif", name: 'Bebas Neue', urlValue: 'Bebas+Neue' },
+            { id: "'Space Mono', monospace", name: 'Space Mono', urlValue: 'Space+Mono:wght@400;700' },
+            { id: "'Roboto', sans-serif", name: 'Roboto', urlValue: 'Roboto:wght@300;400;700' },
+            { id: "'Lato', sans-serif", name: 'Lato', urlValue: 'Lato:wght@300;400;700' },
+            { id: "'Montserrat', sans-serif", name: 'Montserrat', urlValue: 'Montserrat:wght@300;400;700' },
+            { id: "'Open Sans', sans-serif", name: 'Open Sans', urlValue: 'Open+Sans:wght@300;400;700' },
+            { id: "'Poppins', sans-serif", name: 'Poppins', urlValue: 'Poppins:wght@300;400;700' },
+            { id: "'Raleway', sans-serif", name: 'Raleway', urlValue: 'Raleway:wght@300;400;700' },
+        ]
+    }
 ];
+
+const FONT_OPTIONS = FONT_CATEGORIES.flatMap(c => c.fonts);
+
 
 const PRESET_COLORS = {
     bg: ['transparent', '#FFFFFF', '#F9FAFB', '#F3F4F6', '#111827', '#FECACA', '#BFDBFE'],
@@ -883,6 +892,22 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
     }, [isOpen, title]);
     
+    // --- FIX: Collect all necessary characters for PNG export, but keep it concise to avoid URL length issues ---
+    const textToRequestForPng = useMemo(() => {
+        const charSet = new Set(
+            (
+                MONTH_NAMES.join('') + 
+                MONTH_NAMES_EN.join('') +
+                DAY_NAMES.join('') +
+                DAY_NAMES_EN.join('') +
+                localTitle +
+                Object.keys(scheduleData).flatMap(key => scheduleData[key].map(s => s.time)).join('')
+            ).split('')
+        );
+        "0123456789:/(),-".split('').forEach(c => charSet.add(c));
+        return Array.from(charSet).join('');
+    }, [localTitle, scheduleData]);
+
     const propsForContent = useMemo(() => ({
         scheduleData, title: localTitle, calendarDays, currentDate,
         ...pngSettings,
@@ -947,9 +972,13 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         
         setFontStatuses(prev => ({ ...prev, [id]: 'loading' }));
         
+        // Use the comprehensive character set for preview as well
+        const textToRequest = textToRequestForPng;
+
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap`;
+        link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap&text=${encodeURIComponent(textToRequest)}`;
+
         link.onload = () => {
             setFontStatuses(prev => ({ ...prev, [id]: 'loaded' }));
             resolve();
@@ -961,7 +990,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         };
         document.head.appendChild(link);
       });
-    }, [fontStatuses]);
+    }, [fontStatuses, textToRequestForPng]);
 
     useEffect(() => {
         if (isOpen) {
@@ -983,11 +1012,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         try {
             if (currentStatus !== 'loaded') await loadFont(fontOption);
             // Asynchronously warm up the cache for export, fire-and-forget
-            embedFontForExport(fontOption);
+            embedFontForExport(fontOption, textToRequestForPng);
         } catch (error) {
             alert(`無法載入字體：${fontOption.name}。請稍後再試。`);
         }
-    }, [fontStatuses, loadFont, updateSetting]);
+    }, [fontStatuses, loadFont, updateSetting, textToRequestForPng]);
 
 
     // STAGE 1: Embed Font
@@ -1005,7 +1034,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             }
             
             try {
-                const css = await embedFontForExport(selectedFont);
+                const css = await embedFontForExport(selectedFont, textToRequestForPng);
                 setEmbeddedFontCss(css);
                 setExportStage('generating_image');
             } catch (error) {
@@ -1016,7 +1045,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         };
 
         performFontEmbedding();
-    }, [exportStage, font]);
+    }, [exportStage, font, textToRequestForPng]);
     
     // STAGE 2: Generate Image
     useEffect(() => {
@@ -1332,22 +1361,29 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                             </SettingsCard>
                         )}
                         <SettingsCard>
-                          <SettingsSection title="字體">
-                              <div className="relative">
-                                  <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                                      {FONT_OPTIONS.map(f => (
-                                          <FontCard
-                                              key={f.id}
-                                              fontOption={f}
-                                              isSelected={font === f.id}
-                                              status={fontStatuses[f.id] || 'idle'}
-                                              onSelect={() => handleFontSelect(f)}
-                                              preloadFont={() => loadFont(f)}
-                                          />
-                                      ))}
-                                  </div>
-                              </div>
-                          </SettingsSection>
+                            <SettingsSection title="字體">
+                                <div className="space-y-4">
+                                    {FONT_CATEGORIES.map(category => (
+                                        <div key={category.name}>
+                                            <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">{category.name}</h4>
+                                            <div className="relative">
+                                                <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                                                    {category.fonts.map(f => (
+                                                        <FontCard
+                                                            key={f.id}
+                                                            fontOption={f}
+                                                            isSelected={font === f.id}
+                                                            status={fontStatuses[f.id] || 'idle'}
+                                                            onSelect={() => handleFontSelect(f)}
+                                                            preloadFont={() => loadFont(f)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </SettingsSection>
                         </SettingsCard>
                       </>
                     )}

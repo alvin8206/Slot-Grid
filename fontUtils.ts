@@ -1,6 +1,5 @@
-import { getPrimaryFamily } from './fonts';
-
 // utils/fontUtils.ts
+import { getPrimaryFamily } from './fonts';
 
 interface FontOption {
   id: string;
@@ -40,23 +39,27 @@ async function urlToBase64(url: string): Promise<string> {
  * 這次的實作方式是下載完整的 Google Fonts CSS，然後將其中的所有字體 URL 替換為 Base64 Data URL。
  * 帶有 Promise 快取，確保同一個字體只會被處理一次。
  * @param fontOption 要嵌入的字體選項
+ * @param textToRequest (此參數在此版本中被忽略，以提高可靠性)
  * @returns 包含 @font-face 的完整 CSS 規則字串
  */
-export function embedFontForExport(fontOption: FontOption): Promise<string> {
+export function embedFontForExport(fontOption: FontOption, textToRequest: string): Promise<string> {
   const { id, urlValue } = fontOption;
 
-  // 步驟 1: 檢查快取
-  if (fontCssCache.has(id)) {
-    return fontCssCache.get(id)!;
+  // 步驟 1: 快取鍵現在只基於字體 ID，因為我們請求的是完整的字體檔。
+  const cacheKey = id;
+
+  if (fontCssCache.has(cacheKey)) {
+    return fontCssCache.get(cacheKey)!;
   }
 
   // 步驟 2: 如果不在快取中，則建立一個新的 Promise 來處理，並將此 Promise 存入快取
   const promise = (async (): Promise<string> => {
+    // 移除 text=... 參數，以獲取包含所有可用字集（如拉丁文、日文等）的完整字體 CSS。
+    // 這對於不完全支援動態子集化的藝術或日文字體更為可靠。
     const cssUrl = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap`;
     
     try {
       // 步驟 2a: 抓取完整的 Google Fonts CSS 檔案
-      // REMOVED: Hardcoded User-Agent. Let the browser send its native agent to get the most appropriate font format.
       const response = await fetch(cssUrl);
       if (!response.ok) {
         throw new Error(`Failed to fetch font CSS from Google: ${response.statusText}`);
@@ -64,7 +67,6 @@ export function embedFontForExport(fontOption: FontOption): Promise<string> {
       let cssText = await response.text();
 
       // 步驟 2b: 使用正規表示式找出所有字體 URL (woff2, woff, ttf)
-      // UPDATED: Regex now matches more font formats for better mobile compatibility.
       const urlRegex = /url\((https:\/\/[^)]+\.(?:woff2|woff|ttf))\)/g;
       const fontUrls = Array.from(cssText.matchAll(urlRegex), m => m[1]);
       const uniqueFontUrls = [...new Set(fontUrls)];
@@ -93,11 +95,13 @@ export function embedFontForExport(fontOption: FontOption): Promise<string> {
 
     } catch (error) {
       console.error(`Font embedding process failed for ${fontOption.name}:`, error);
-      fontCssCache.delete(id);
-      return `@import url('${cssUrl}');`;
+      fontCssCache.delete(cacheKey);
+      // 發生錯誤時，回退到簡單的 @import，雖然可能不完美，但比完全失敗好
+      const fallbackCssUrl = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap`;
+      return `@import url('${fallbackCssUrl}');`;
     }
   })();
 
-  fontCssCache.set(id, promise);
+  fontCssCache.set(cacheKey, promise);
   return promise;
 }
