@@ -131,7 +131,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerCon
       >
         
         <header 
-          className="flex-shrink-0 flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-10"
+          className="flex-shrink-0 flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-30"
           style={{ paddingTop: `calc(1rem + env(safe-area-inset-top))` }}
         >
           <div className="flex-grow">{headerContent}</div>
@@ -146,7 +146,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerCon
         
         <footer 
             ref={footerRef}
-            className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white dark:from-gray-800 to-white/0 dark:to-gray-800/0 backdrop-blur-sm pt-8 pb-4"
+            className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-white dark:from-gray-800 to-white/0 dark:to-gray-800/0 backdrop-blur-sm pt-8 pb-4"
             style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
         >
             <div className="container mx-auto px-4">

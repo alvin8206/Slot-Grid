@@ -56,24 +56,21 @@ export function embedFontForExport(fontOption: FontOption): Promise<string> {
     
     try {
       // 步驟 2a: 抓取完整的 Google Fonts CSS 檔案
-      const response = await fetch(cssUrl, {
-        headers: {
-          // 使用標準的 User-Agent，讓 Google Fonts 回傳 woff2 格式
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        },
-      });
+      // REMOVED: Hardcoded User-Agent. Let the browser send its native agent to get the most appropriate font format.
+      const response = await fetch(cssUrl);
       if (!response.ok) {
         throw new Error(`Failed to fetch font CSS from Google: ${response.statusText}`);
       }
       let cssText = await response.text();
 
-      // 步驟 2b: 使用正規表示式找出所有 .woff2 的 URL
-      const urlRegex = /url\((https:\/\/[^)]+\.woff2)\)/g;
+      // 步驟 2b: 使用正規表示式找出所有字體 URL (woff2, woff, ttf)
+      // UPDATED: Regex now matches more font formats for better mobile compatibility.
+      const urlRegex = /url\((https:\/\/[^)]+\.(?:woff2|woff|ttf))\)/g;
       const fontUrls = Array.from(cssText.matchAll(urlRegex), m => m[1]);
       const uniqueFontUrls = [...new Set(fontUrls)];
 
       if (uniqueFontUrls.length === 0) {
-        console.warn(`No .woff2 URLs found for font ${fontOption.name}. Falling back to @import.`);
+        console.warn(`No font URLs found for font ${fontOption.name}. Falling back to @import.`);
         return `@import url('${cssUrl}');`;
       }
 
