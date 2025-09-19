@@ -108,56 +108,50 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             return;
         }
 
-        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
         setExportStage('generating_image');
-        setLoadingMessage('正在準備字體...');
 
-        const MIN_EXPORT_DURATION = 2500;
-        const delayPromise = new Promise(resolve => setTimeout(resolve, MIN_EXPORT_DURATION));
-        
+        // A minimum delay for better UX, ensuring loading messages are visible.
+        const delayPromise = new Promise(resolve => setTimeout(resolve, 2000));
+
         const generationTask = async () => {
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
 
-            let styleEl: HTMLStyleElement | null = null;
-            const googleFontLinks: HTMLLinkElement[] = Array.from(document.querySelectorAll('link[href*="fonts.googleapis.com"]'));
-
             try {
-                googleFontLinks.forEach(link => link.parentElement?.removeChild(link));
-
+                // Step 1: Get the self-contained @font-face CSS string with Base64 data.
+                setLoadingMessage('正在內嵌字體...');
                 const fontEmbedCSS = await embedFontForExport(selectedFont);
-                
-                styleEl = document.createElement('style');
-                styleEl.textContent = fontEmbedCSS;
-                document.head.appendChild(styleEl);
-
-                const primaryFontFamily = getPrimaryFamily(selectedFont.id);
-                await document.fonts.load(`1em "${primaryFontFamily}"`);
-                
-                // [FIX FOR iOS] Add a small, fixed delay. This acts as an insurance policy,
-                // giving iOS's rendering engine a moment to catch up and actually apply
-                // the newly loaded font before we take the screenshot. This dramatically
-                // increases the success rate of the first export on mobile devices.
-                setLoadingMessage('等待字體渲染...');
-                await delay(5000);
-
-                exportNode.offsetHeight; // Trigger reflow
-                await new Promise(resolve => requestAnimationFrame(resolve));
 
                 setLoadingMessage('正在繪製圖片...');
 
+                // Step 2: Delegate font handling entirely to the library.
+                // This is the most robust way to handle cross-browser font rendering.
                 const dataUrl = await htmlToImage.toPng(exportNode, {
                     quality: 1,
                     pixelRatio: 2,
                     backgroundColor: pngSettings.bgColor,
+                    fontEmbedCSS: fontEmbedCSS, // Pass the CSS directly to the library.
+                    
+                    // Filter out external font stylesheets from the main document
+                    // to prevent CORS errors during the capture process.
+                    // FIX: Cast node to HTMLLinkElement to safely access 'href' property.
+                    // The 'href' property is not on the base HTMLElement type, causing a TypeScript error.
+                    filter: (node: HTMLElement) => {
+                        if (node.tagName === 'LINK') {
+                            const linkNode = node as HTMLLinkElement;
+                            if (linkNode.href && linkNode.href.includes('fonts.googleapis.com')) {
+                                return false; // Exclude these nodes
+                            }
+                        }
+                        return true; // Keep all other nodes
+                    },
                 });
                 
                 setGeneratedPngDataUrl(dataUrl);
 
-            } finally {
-                if (styleEl) document.head.removeChild(styleEl);
-                googleFontLinks.forEach(link => document.head.appendChild(link));
+            } catch (error) {
+                // Re-throw to be caught by the outer try-catch block
+                throw error;
             }
         };
 
