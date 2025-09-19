@@ -1,4 +1,3 @@
-
 // components/PngExportModal.tsx
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode } from '../types';
@@ -10,112 +9,8 @@ import { FONT_OPTIONS, ExportStage, PngSettingsTab } from './PngExportModal.help
 import { useFontLoader, usePreviewScaling } from './PngExportModal.hooks';
 import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
 
-/**
- * Traverses the document's stylesheets to collect all non-CORS-protected CSS rules.
- * This is crucial for capturing styles injected by libraries like Tailwind's JIT CDN script.
- * @returns A string containing all applicable CSS rules.
- */
-const getAllDocumentCss = (): string => {
-  let cssText = '';
-  // Convert StyleSheetList to an array to iterate over it.
-  for (const sheet of Array.from(document.styleSheets)) {
-    try {
-      // Accessing cssRules will throw a SecurityError for cross-origin stylesheets.
-      // We wrap this in a try-catch to handle it gracefully and skip those sheets.
-      // This is expected and desired behavior, as we handle external fonts separately.
-      if (sheet.cssRules) {
-        for (const rule of Array.from(sheet.cssRules)) {
-          cssText += rule.cssText;
-        }
-      }
-    } catch (e) {
-      // Log a warning for debugging purposes, but don't let it stop the process.
-      console.warn(`Could not read CSS rules from stylesheet (likely cross-origin): ${sheet.href}`, e);
-    }
-  }
-  return cssText;
-};
-
-
-/**
- * A highly robust, deterministic rendering function to convert an HTML node to a PNG.
- * This approach bypasses traditional "screenshot" libraries by manually constructing a
- * self-contained SVG, ensuring all styles and fonts are embedded, thus eliminating
- * race conditions and environment discrepancies, especially on mobile browsers.
- *
- * @param node The HTML element to render.
- * @param fontEmbedCss The complete, Base64-embedded @font-face CSS string.
- * @returns A Promise that resolves with the PNG Data URL.
- */
-const deterministicHtmlToPng = (node: HTMLElement, fontEmbedCss: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const width = node.offsetWidth;
-    const height = node.offsetHeight;
-
-    // --- STAGE 1: Create a self-contained SVG with all resources embedded ---
-    const outerHTML = node.outerHTML;
-    
-    // ** THE CRITICAL FIX **
-    // Capture all document styles (like Tailwind) to ensure the exported image
-    // matches the live preview. Without this, only inline styles would be applied.
-    const documentCss = getAllDocumentCss();
-
-    // We construct a complete, self-contained HTML document string.
-    // This ensures a clean rendering environment inside the SVG's <foreignObject>.
-    const fullHtmlString = `
-      <style>
-        ${documentCss}
-        ${fontEmbedCss}
-      </style>
-      ${outerHTML}
-    `;
-
-    // The SVG data URL is created, embedding the entire HTML document.
-    // This is the "design blueprint" that is 100% self-contained and ready for rendering.
-    const svgData = `
-      <svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}'>
-        <foreignObject width='100%' height='100%'>
-          <div xmlns='http://www.w3.org/1999/xhtml' style='width: 100%; height: 100%;'>
-            ${fullHtmlString}
-          </div>
-        </foreignObject>
-      </svg>
-    `;
-    const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
-
-    // --- STAGE 2: Render the deterministic SVG to a PNG via a Canvas ---
-    // This stage is reliable because the SVG source is complete and has no external dependencies.
-    const img = new Image();
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
-    const pixelRatio = 2; // For high-resolution output
-    canvas.width = width * pixelRatio;
-    canvas.height = height * pixelRatio;
-    if (ctx) {
-        ctx.scale(pixelRatio, pixelRatio);
-    }
-
-
-    img.onload = () => {
-      if (!ctx) {
-        return reject(new Error('Failed to get 2D canvas context.'));
-      }
-      ctx.drawImage(img, 0, 0, width, height);
-      const pngDataUrl = canvas.toDataURL('image/png', 1.0);
-      resolve(pngDataUrl);
-    };
-
-    img.onerror = (error) => {
-      console.error("Error loading self-contained SVG into Image object:", error);
-      reject(new Error('The generated SVG could not be loaded for PNG conversion. This may be a browser limitation.'));
-    };
-
-    // Start the process by setting the image source to our SVG data URL.
-    img.src = svgDataUrl;
-  });
-};
-
+// The htmlToImage library is loaded via CDN and available on the window object.
+declare const htmlToImage: any;
 
 interface PngExportModalProps {
     isOpen: boolean;
@@ -206,42 +101,41 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
 
     const handleStartExport = useCallback(async () => {
         const exportNode = exportRef.current;
-        if (!exportNode) {
-            alert('無法匯出：預覽元件尚未準備好。');
+        if (!exportNode || typeof htmlToImage === 'undefined') {
+            alert('匯出工具尚未準備好，請稍後再試。');
             return;
         }
-
+    
         setExportStage('generating_image');
         setLoadingMessage('同步渲染管線...');
-
-        // --- THE ULTIMATE FIX for the JIT Race Condition ---
-        // We must wait for the next browser paint cycle. Here's why:
-        // 1. When state changes, React updates the DOM (e.g., new Tailwind classes).
-        // 2. The Tailwind JIT CDN script's MutationObserver sees these changes and starts generating CSS.
-        // 3. Our export function runs immediately after the state change.
-        // THE RACE: Our function might run *before* Tailwind has finished injecting the new styles into its <style> tag.
-        // THE SOLUTION: `requestAnimationFrame` tells the browser: "Run this code right before the next repaint."
-        // By waiting for one frame, we guarantee that all pending DOM updates AND the subsequent CSS injections
-        // from libraries like Tailwind have completed. This aligns our capture process with the browser's
-        // rendering pipeline, deterministically solving the race condition.
+    
+        // Wait for the next browser paint cycle to ensure all styles (e.g., from Tailwind JIT) are applied.
         await new Promise(resolve => requestAnimationFrame(resolve));
         
-        // A short, fixed delay for better UX, making the loading state feel less abrupt.
+        // A short, fixed delay for better UX and to let things settle.
         const delayPromise = new Promise(resolve => setTimeout(resolve, 500));
-
+    
         const generationTask = async () => {
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
             
-            setLoadingMessage('正在內嵌字體與樣式...');
+            setLoadingMessage('正在內嵌字體...');
             const fontEmbedCSS = await embedFontForExport(selectedFont);
             
-            setLoadingMessage('正在序列化資源...');
-            const pngDataUrl = await deterministicHtmlToPng(exportNode, fontEmbedCSS);
+            setLoadingMessage('正在生成圖片...');
+            const dataUrl = await htmlToImage.toPng(exportNode, {
+                quality: 1.0,
+                pixelRatio: 2,
+                // Provide the pre-processed, self-contained font CSS.
+                // This is the most critical step for reliability.
+                fontEmbedCSS: fontEmbedCSS,
+                // Pass the background color; use null for transparency.
+                backgroundColor: propsForContent.bgColor === 'transparent' ? null : propsForContent.bgColor,
+            });
             
-            setGeneratedPngDataUrl(pngDataUrl);
+            setGeneratedPngDataUrl(dataUrl);
         };
-
+    
         try {
             await Promise.all([generationTask(), delayPromise]);
             setExportStage('completed');
@@ -250,7 +144,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         }
-    }, [pngSettings.font]);
+    }, [pngSettings.font, propsForContent.bgColor]);
 
 
     const handleOpenInNewTab = useCallback(async () => {
