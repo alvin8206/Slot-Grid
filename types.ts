@@ -54,4 +54,18 @@ export interface PngSettingsState {
   dayOffColor: string;
   closedColor: string;
   fullyBookedColor: string;
+  slotLayout: 'vertical' | 'horizontal-wrap';
+}
+
+export interface TextExportSettingsState {
+  layout: 'default' | 'compact' | 'double-row';
+  language: 'zh' | 'en';
+  includeTitle: boolean;
+  includeYear: boolean;
+  showMonth: boolean;
+  showBooked: boolean;
+  showDayOfWeek: boolean;
+  showFullyBooked: boolean;
+  showDayOff: boolean;
+  bookedStyle: 'strikethrough' | 'annotation';
 }
