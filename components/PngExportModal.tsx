@@ -1,3 +1,4 @@
+// components/PngExportModal.tsx
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode } from '../types';
 import { DownloadIcon, SpinnerIcon } from './icons';
@@ -8,49 +9,108 @@ import { FONT_OPTIONS, ExportStage, PngSettingsTab } from './PngExportModal.help
 import { useFontLoader, usePreviewScaling } from './PngExportModal.hooks';
 import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
 
-// This declaration is necessary because html-to-image is loaded from a CDN.
-declare const htmlToImage: {
-  toPng: <T extends HTMLElement>(node: T, options?: object) => Promise<string>;
-  toSvg: <T extends HTMLElement>(node: T, options?: object) => Promise<string>;
+/**
+ * Traverses the document's stylesheets to collect all non-CORS-protected CSS rules.
+ * This is crucial for capturing styles injected by libraries like Tailwind's JIT CDN script.
+ * @returns A string containing all applicable CSS rules.
+ */
+const getAllDocumentCss = (): string => {
+  let cssText = '';
+  // Convert StyleSheetList to an array to iterate over it.
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      // Accessing cssRules will throw a SecurityError for cross-origin stylesheets.
+      // We wrap this in a try-catch to handle it gracefully and skip those sheets.
+      // This is expected and desired behavior, as we handle external fonts separately.
+      if (sheet.cssRules) {
+        for (const rule of Array.from(sheet.cssRules)) {
+          cssText += rule.cssText;
+        }
+      }
+    } catch (e) {
+      // Log a warning for debugging purposes, but don't let it stop the process.
+      console.warn(`Could not read CSS rules from stylesheet (likely cross-origin): ${sheet.href}`, e);
+    }
+  }
+  return cssText;
 };
 
+
 /**
- * The definitive, two-stage rendering function to convert a self-contained SVG into a PNG Data URL.
- * This process is deterministic and avoids race conditions inherent in direct PNG generation.
- * @param svgDataUrl The `data:image/svg+xml` URL of the generated SVG.
- * @param width The desired output width of the PNG.
- * @param height The desired output height of the PNG.
+ * A highly robust, deterministic rendering function to convert an HTML node to a PNG.
+ * This approach bypasses traditional "screenshot" libraries by manually constructing a
+ * self-contained SVG, ensuring all styles and fonts are embedded, thus eliminating
+ * race conditions and environment discrepancies, especially on mobile browsers.
+ *
+ * @param node The HTML element to render.
+ * @param fontEmbedCss The complete, Base64-embedded @font-face CSS string.
  * @returns A Promise that resolves with the PNG Data URL.
  */
-const renderSvgToPng = (svgDataUrl: string, width: number, height: number): Promise<string> => {
+const deterministicHtmlToPng = (node: HTMLElement, fontEmbedCss: string): Promise<string> => {
   return new Promise((resolve, reject) => {
+    const width = node.offsetWidth;
+    const height = node.offsetHeight;
+
+    // --- STAGE 1: Create a self-contained SVG with all resources embedded ---
+    const outerHTML = node.outerHTML;
+    
+    // ** THE CRITICAL FIX **
+    // Capture all document styles (like Tailwind) to ensure the exported image
+    // matches the live preview. Without this, only inline styles would be applied.
+    const documentCss = getAllDocumentCss();
+
+    // We construct a complete, self-contained HTML document string.
+    // This ensures a clean rendering environment inside the SVG's <foreignObject>.
+    const fullHtmlString = `
+      <style>
+        ${documentCss}
+        ${fontEmbedCss}
+      </style>
+      ${outerHTML}
+    `;
+
+    // The SVG data URL is created, embedding the entire HTML document.
+    // This is the "design blueprint" that is 100% self-contained and ready for rendering.
+    const svgData = `
+      <svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}'>
+        <foreignObject width='100%' height='100%'>
+          <div xmlns='http://www.w3.org/1999/xhtml' style='width: 100%; height: 100%;'>
+            ${fullHtmlString}
+          </div>
+        </foreignObject>
+      </svg>
+    `;
+    const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+
+    // --- STAGE 2: Render the deterministic SVG to a PNG via a Canvas ---
+    // This stage is reliable because the SVG source is complete and has no external dependencies.
     const img = new Image();
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    
-    // Set canvas dimensions with a pixel ratio for high-resolution output.
-    const pixelRatio = 2;
+
+    const pixelRatio = 2; // For high-resolution output
     canvas.width = width * pixelRatio;
     canvas.height = height * pixelRatio;
+    if (ctx) {
+        ctx.scale(pixelRatio, pixelRatio);
+    }
+
 
     img.onload = () => {
-      if (ctx) {
-        // Draw the fully rendered SVG image onto the canvas.
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        // Export the canvas content as a PNG. This is a synchronous operation.
-        const pngDataUrl = canvas.toDataURL('image/png', 1.0);
-        resolve(pngDataUrl);
-      } else {
-        reject(new Error('Failed to get canvas 2D context.'));
+      if (!ctx) {
+        return reject(new Error('Failed to get 2D canvas context.'));
       }
+      ctx.drawImage(img, 0, 0, width, height);
+      const pngDataUrl = canvas.toDataURL('image/png', 1.0);
+      resolve(pngDataUrl);
     };
 
     img.onerror = (error) => {
-      console.error("Error loading SVG into Image object:", error);
-      reject(new Error('The generated SVG could not be loaded for PNG conversion.'));
+      console.error("Error loading self-contained SVG into Image object:", error);
+      reject(new Error('The generated SVG could not be loaded for PNG conversion. This may be a browser limitation.'));
     };
 
-    // Start the process by setting the image source to our SVG data.
+    // Start the process by setting the image source to our SVG data URL.
     img.src = svgDataUrl;
   });
 };
@@ -151,37 +211,18 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
 
         setExportStage('generating_image');
-        const delayPromise = new Promise(resolve => setTimeout(resolve, 1500)); // Ensure minimum display time for UX
+        const delayPromise = new Promise(resolve => setTimeout(resolve, 1500));
 
         const generationTask = async () => {
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
             
-            // --- STAGE 1: Generate a self-contained SVG ---
-            setLoadingMessage('正在內嵌字體...');
+            setLoadingMessage('正在內嵌字體與樣式...');
             const fontEmbedCSS = await embedFontForExport(selectedFont);
-
-            setLoadingMessage('生成向量圖 (SVG)...');
-            const svgDataUrl = await htmlToImage.toSvg(exportNode, {
-                quality: 1,
-                fontEmbedCSS: fontEmbedCSS, // Pass the embedded font data directly to the library.
-                backgroundColor: pngSettings.bgColor,
-                filter: (node: HTMLElement) => {
-                    // Filter out external font stylesheets from the main document to prevent CORS errors.
-                    if (node.tagName === 'LINK') {
-                        const linkNode = node as HTMLLinkElement;
-                        if (linkNode.href && linkNode.href.includes('fonts.googleapis.com')) {
-                            return false;
-                        }
-                    }
-                    return true;
-                },
-            });
-
-            // --- STAGE 2: Deterministically render the SVG to a PNG via Canvas ---
-            setLoadingMessage('點陣化圖片 (PNG)...');
-            const { offsetWidth, offsetHeight } = exportNode;
-            const pngDataUrl = await renderSvgToPng(svgDataUrl, offsetWidth, offsetHeight);
+            
+            setLoadingMessage('正在序列化資源...');
+            // Use the new deterministic rendering function
+            const pngDataUrl = await deterministicHtmlToPng(exportNode, fontEmbedCSS);
             
             setGeneratedPngDataUrl(pngDataUrl);
         };
@@ -194,7 +235,8 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         }
-    }, [pngSettings.font, pngSettings.bgColor]);
+    }, [pngSettings.font]);
+
 
     const handleOpenInNewTab = useCallback(async () => {
         if (!generatedPngDataUrl) return;
@@ -220,8 +262,10 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             {loginPromptContent}
             <div className="grid grid-cols-2 gap-3 w-full">
                 <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" disabled={isExporting}>關閉</button>
-                <button onClick={handleStartExport} disabled={isExporting} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-wait">
-                    {isExporting ? <><SpinnerIcon className="w-5 h-5 mr-2" />{loadingMessage}</> : <><DownloadIcon /> 下載 PNG</>}
+                <button onClick={handleStartExport} disabled={isExporting || selectedFontStatus !== 'loaded'} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-wait">
+                    {isExporting ? <><SpinnerIcon className="w-5 h-5 mr-2" />{loadingMessage}</> : 
+                     selectedFontStatus !== 'loaded' ? <><SpinnerIcon className="w-5 h-5 mr-2" />字體準備中...</> : 
+                     <><DownloadIcon /> 下載 PNG</>}
                 </button>
             </div>
         </>
@@ -263,6 +307,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                                 <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out, height 0.2s ease-out', visibility: selectedFontStatus === 'loaded' ? 'visible' : 'hidden' }}>
                                     <PngExportContent {...propsForContent} />
                                 </div>
+                                {selectedFontStatus !== 'loaded' && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <SpinnerIcon className="w-8 h-8 text-gray-500" />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
