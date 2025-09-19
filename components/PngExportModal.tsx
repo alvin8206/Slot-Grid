@@ -119,40 +119,48 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
 
             let styleEl: HTMLStyleElement | null = null;
+            // FIX: Find all external Google Font links to be temporarily removed.
+            const googleFontLinks: HTMLLinkElement[] = Array.from(document.querySelectorAll('link[href*="fonts.googleapis.com"]'));
+
             try {
-                // 1. Get the self-contained CSS with base64 font data.
+                // 1. Temporarily remove all external Google Font <link> tags from the document.
+                // This is the most reliable way to prevent html-to-image from trying to
+                // process them and causing a CORS error.
+                googleFontLinks.forEach(link => link.parentElement?.removeChild(link));
+
+                // 2. Get the self-contained CSS with base64 font data.
                 const fontEmbedCSS = await embedFontForExport(selectedFont);
                 
-                // 2. Inject the style into the main document so the browser knows about the font.
+                // 3. Inject the style into the main document so the browser knows about the font.
                 styleEl = document.createElement('style');
                 styleEl.textContent = fontEmbedCSS;
                 document.head.appendChild(styleEl);
 
-                // 3. THE CRITICAL FIX: Use the precise `document.fonts.load()` API.
-                // This returns a promise that resolves ONLY when this specific font is ready for rendering.
+                // 4. Use the precise `document.fonts.load()` API to wait for the font.
                 const primaryFontFamily = getPrimaryFamily(selectedFont.id);
                 await document.fonts.load(`1em "${primaryFontFamily}"`);
                 
-                // 4. Force a repaint to ensure the browser has applied the font.
+                // 5. Force a repaint to ensure the browser has applied the font.
                 exportNode.offsetHeight; // Trigger reflow
                 await new Promise(resolve => requestAnimationFrame(resolve));
 
                 setLoadingMessage('正在繪製圖片...');
 
-                // 5. Now, it's safe to take the screenshot.
-                // We still pass fontEmbedCSS to the library for maximum reliability.
+                // 6. Now, it's safe to take the screenshot. No filter is needed because
+                // the problematic cross-origin links have been removed.
                 const dataUrl = await htmlToImage.toPng(exportNode, {
                     quality: 1,
                     pixelRatio: 2,
                     backgroundColor: pngSettings.bgColor,
-                    fontEmbedCSS: fontEmbedCSS,
                 });
                 
                 setGeneratedPngDataUrl(dataUrl);
 
             } finally {
-                // 6. Clean up: remove the injected style tag.
+                // 7. Guaranteed cleanup: remove our injected style tag and, crucially,
+                // restore the original Google Font links to the document.
                 if (styleEl) document.head.removeChild(styleEl);
+                googleFontLinks.forEach(link => document.head.appendChild(link));
             }
         };
 

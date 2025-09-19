@@ -17,7 +17,14 @@ const fontCssCache = new Map<string, Promise<string>>();
  */
 async function urlToBase64(url: string): Promise<string> {
   try {
-    const response = await fetch(url);
+    // FIX: Add a User-Agent header. Just like the CSS request, the font file
+    // request can fail in sandboxed environments without a standard browser
+    // user agent. Adding it here ensures the font file itself can be downloaded.
+    const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        }
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch font file: ${response.statusText}`);
     }
@@ -59,7 +66,16 @@ export function embedFontForExport(fontOption: FontOption): Promise<string> {
     
     try {
       // 步驟 2a: 抓取完整的 Google Fonts CSS 檔案
-      const response = await fetch(cssUrl);
+      // FIX: Add a User-Agent header to the fetch request.
+      // The Google Fonts API serves different CSS based on the user agent.
+      // In some sandboxed environments, the default fetch user agent may be
+      // minimal or missing, causing the request to fail. By providing a
+      // standard browser user agent, we ensure a consistent and successful response.
+      const response = await fetch(cssUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        }
+      });
       if (!response.ok) {
         throw new Error(`Failed to fetch font CSS from Google: ${response.statusText}`);
       }
