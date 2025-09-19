@@ -1,3 +1,4 @@
+
 // components/PngExportModal.tsx
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode } from '../types';
@@ -211,7 +212,22 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
 
         setExportStage('generating_image');
-        const delayPromise = new Promise(resolve => setTimeout(resolve, 1500));
+        setLoadingMessage('同步渲染管線...');
+
+        // --- THE ULTIMATE FIX for the JIT Race Condition ---
+        // We must wait for the next browser paint cycle. Here's why:
+        // 1. When state changes, React updates the DOM (e.g., new Tailwind classes).
+        // 2. The Tailwind JIT CDN script's MutationObserver sees these changes and starts generating CSS.
+        // 3. Our export function runs immediately after the state change.
+        // THE RACE: Our function might run *before* Tailwind has finished injecting the new styles into its <style> tag.
+        // THE SOLUTION: `requestAnimationFrame` tells the browser: "Run this code right before the next repaint."
+        // By waiting for one frame, we guarantee that all pending DOM updates AND the subsequent CSS injections
+        // from libraries like Tailwind have completed. This aligns our capture process with the browser's
+        // rendering pipeline, deterministically solving the race condition.
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        
+        // A short, fixed delay for better UX, making the loading state feel less abrupt.
+        const delayPromise = new Promise(resolve => setTimeout(resolve, 500));
 
         const generationTask = async () => {
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
@@ -221,7 +237,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             const fontEmbedCSS = await embedFontForExport(selectedFont);
             
             setLoadingMessage('正在序列化資源...');
-            // Use the new deterministic rendering function
             const pngDataUrl = await deterministicHtmlToPng(exportNode, fontEmbedCSS);
             
             setGeneratedPngDataUrl(pngDataUrl);
