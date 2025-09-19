@@ -51,6 +51,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerCon
       className={`fixed inset-0 bg-black bg-opacity-70 flex items-end xl:items-center justify-center z-50 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
     >
       <div 
+        data-modal-dialog="true"
         onClick={(e) => e.stopPropagation()}
         className={`relative bg-white dark:bg-gray-800 w-full h-[100dvh] xl:rounded-2xl xl:shadow-2xl xl:h-auto xl:max-h-[calc(100vh-4rem)] flex flex-col transition-transform duration-300 ${isOpen ? 'translate-y-0' : 'translate-y-full xl:translate-y-4'} ${modalClassName || 'xl:max-w-lg'}`}
       >
