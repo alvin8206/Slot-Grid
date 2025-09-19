@@ -140,7 +140,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 // the newly loaded font before we take the screenshot. This dramatically
                 // increases the success rate of the first export on mobile devices.
                 setLoadingMessage('等待字體渲染...');
-                await delay(1000);
+                await delay(5000);
 
                 exportNode.offsetHeight; // Trigger reflow
                 await new Promise(resolve => requestAnimationFrame(resolve));
