@@ -273,7 +273,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         }
     };
     
-    const header = <h2 className="text-xl font-bold text-center text-gray-800 dark:text-gray-100">{isRegistering ? '註冊帳號' : '登入'}</h2>;
+    const header = <h2 className="text-xl font-bold text-center text-gray-800 dark:text-gray-100" translate="no">{isRegistering ? '註冊帳號' : '登入'}</h2>;
     
     const footer = (
       <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
@@ -508,7 +508,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
   const currentSlotsArray = getSortedSlots(localSlots);
 
   const header = (
-      <div>
+      <div translate="no">
         <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">編輯時段</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">{`${selectedDay.getFullYear()} 年 ${MONTH_NAMES[selectedDay.getMonth()]} ${selectedDay.getDate()} 日`}</p>
       </div>
@@ -547,7 +547,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
 
         {localStatus !== 'available' && (
             <div className="text-center p-4 my-4 bg-blue-50 dark:bg-blue-900/50 rounded-lg">
-                <p className="font-semibold text-blue-800 dark:text-blue-200">目前狀態為：{DAY_STATUS_TEXT_MAP[localStatus]}</p>
+                <p className="font-semibold text-blue-800 dark:text-blue-200" translate="no">目前狀態為：{DAY_STATUS_TEXT_MAP[localStatus]}</p>
                 <button onClick={handleClearStatusAndSlots} className="mt-2 text-sm text-blue-600 dark:text-blue-300 hover:underline font-medium">
                     清除狀態，返回時段編輯
                 </button>
@@ -596,7 +596,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
                                     ${isSelected ? 'bg-blue-600 border-blue-700 font-bold text-white' : (isCurrentMonth && !isTargetDay ? 'bg-white dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-blue-600 text-gray-800 dark:text-gray-200' : '')}
                                     `}>
                                     {isSelected && <CheckIcon className="absolute top-0.5 right-0.5 h-3 w-3 text-white" />}
-                                    <span>{date.getDate()}</span>
+                                    <span translate="no">{date.getDate()}</span>
                                 </div>
                             );
                         })}
@@ -611,7 +611,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
                         <div className="flex flex-wrap gap-2">
                             {currentSlotsArray.map(slot => (
                                 <div key={slot.time} className="bg-blue-500 text-white text-sm font-medium pl-3 pr-2 py-1 rounded-full flex items-center gap-2">
-                                    <span>{slot.time}</span>
+                                    <span translate="no">{slot.time}</span>
                                     <button onClick={() => handleRemoveSlot(slot.time)} className="bg-blue-400 hover:bg-blue-300 rounded-full p-0.5"><TrashIcon/></button>
                                 </div>
                             ))}
@@ -780,7 +780,7 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
             const textContent = linesWithWidth.map(line => {
                 const contentStr = Array.isArray(line.content) ? line.content.join(', ') : line.content;
                 const padding = ' '.repeat(Math.max(0, maxPrefixWidth - line.width));
-                return `${line.prefix}${padding}   ${contentStr}`;
+                return `${line.prefix}${padding}  ${contentStr}`;
             }).join('\n');
             text += textContent;
         } else if (layout === 'double-row') {
@@ -792,7 +792,7 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
         } else { // default layout
             const textContent = linesData.map(line => {
                 if (line.type === 'slots') {
-                    const slotsStr = line.content.map(s => `- ${s}`).join('\n');
+                    const slotsStr = line.content.map(s => s).join('\n');
                     return `${line.prefix}\n${slotsStr}`;
                 }
                 return `${line.prefix}: ${line.content}`;
@@ -816,7 +816,7 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
 
     if (!isOpen) return null;
 
-    const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">匯出文字格式</h2>;
+    const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100" translate="no">匯出文字格式</h2>;
     const footer = (
         <>
             {loginPromptContent}
@@ -841,8 +841,8 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                 <div className="space-y-2">
                     <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">排版</label>
                     <div className="grid grid-cols-3 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                        <button onClick={() => updateSetting('layout', 'default')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'default' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>詳細</button>
-                        <button onClick={() => updateSetting('layout', 'compact')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'compact' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>緊湊</button>
+                        <button onClick={() => updateSetting('layout', 'default')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'default' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>垂直</button>
+                        <button onClick={() => updateSetting('layout', 'compact')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'compact' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>水平</button>
                         <button onClick={() => updateSetting('layout', 'double-row')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'double-row' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>雙排</button>
                     </div>
                 </div>
@@ -1112,12 +1112,14 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         ...pngSettings,
     }), [scheduleData, localTitle, calendarDays, currentDate, pngSettings]);
 
+    const selectedFontStatus = fontStatuses[font] || 'idle';
+
     useLayoutEffect(() => {
         const containerNode = previewContainerRef.current;
         const wrapperNode = scaleWrapperRef.current;
         const exportNode = exportRef.current;
 
-        if (!isOpen || !containerNode || !wrapperNode || !exportNode) {
+        if (!isOpen || !containerNode || !wrapperNode || !exportNode || selectedFontStatus !== 'loaded') {
             return;
         }
 
@@ -1158,7 +1160,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                  wrapperNode.style.transform = '';
             }
         };
-    }, [isOpen, propsForContent]);
+    }, [isOpen, propsForContent, selectedFontStatus]);
     
     const loadFont = useCallback((fontOption: typeof FONT_OPTIONS[0]) => {
       return new Promise<void>((resolve, reject) => {
@@ -1224,7 +1226,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         setExportStage('generating_image');
         setLoadingMessage('正在準備字體...');
 
-        const MIN_EXPORT_DURATION = 4500;
+        const MIN_EXPORT_DURATION = 3500;
         const delayPromise = new Promise(resolve => setTimeout(resolve, MIN_EXPORT_DURATION));
 
         const generationTask = async () => {
@@ -1233,18 +1235,8 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 throw new Error("錯誤：找不到選擇的字體。");
             }
             
-            const styleElementId = 'temp-font-for-export';
-
             try {
                 const fontEmbedCSS = await embedFontForExport(selectedFont);
-                const styleElement = document.createElement('style');
-                styleElement.id = styleElementId;
-                styleElement.innerHTML = fontEmbedCSS;
-                document.head.appendChild(styleElement);
-                
-                const fontFamilyToLoad = getPrimaryFamily(selectedFont.id);
-                await document.fonts.load(`16px "${fontFamilyToLoad}"`);
-                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
                 setLoadingMessage('正在繪製圖片...');
                 const dataUrl = await htmlToImage.toPng(exportNode, {
@@ -1255,11 +1247,9 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 });
 
                 setGeneratedPngDataUrl(dataUrl);
-            } finally {
-                const tempStyle = document.getElementById(styleElementId);
-                if (tempStyle) {
-                    tempStyle.remove();
-                }
+            } catch (err) {
+                console.error("Error during image generation process:", err);
+                throw err;
             }
         };
 
@@ -1273,7 +1263,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         } finally {
             setIsExporting(false);
         }
-    }, [font, bgColor, currentDate, localTitle, pngSettings]);
+    }, [font, bgColor]);
 
     const handleOpenInNewTab = useCallback(async () => {
         if (!generatedPngDataUrl) return;
@@ -1316,7 +1306,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     
     if (!isOpen) return null;
 
-    const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{exportStage === 'completed' ? '匯出成功！' : '匯出 PNG 圖片'}</h2>;
+    const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100" translate="no">{exportStage === 'completed' ? '匯出成功！' : '匯出 PNG 圖片'}</h2>;
     
     const footer = exportStage === 'completed' ? null : (
         <>
@@ -1969,6 +1959,9 @@ const App: React.FC = () => {
     const footerRef = useRef<HTMLElement>(null);
     const [footerHeight, setFooterHeight] = useState(0);
 
+    const [isDeleteMode, setIsDeleteMode] = useState(false);
+    const [datesToDelete, setDatesToDelete] = useState<Set<string>>(new Set());
+
     useLayoutEffect(() => {
         const node = footerRef.current;
         if (!node) return;
@@ -2045,38 +2038,48 @@ const App: React.FC = () => {
         }
     }, [docRef]);
     
-    // This is now a generic state update handler
-    const updateAndSaveState = useCallback(<K extends keyof any>(updates: Partial<{
+    const updateAndSaveState = useCallback((updates: Partial<{
         scheduleData: ScheduleData;
         title: string;
         textExportSettings: TextExportSettingsState;
         pngSettings: PngSettingsState;
     }>) => {
-        
-        const newState = {
-            scheduleData: updates.scheduleData ?? scheduleData,
-            title: updates.title ?? title,
-            textExportSettings: updates.textExportSettings ?? textExportSettings,
-            pngSettings: updates.pngSettings ?? pngSettings,
-        };
-        
-        // Update React state
-        if(updates.scheduleData) setScheduleData(updates.scheduleData);
-        if(updates.title) setTitle(updates.title);
-        if(updates.textExportSettings) setTextExportSettings(updates.textExportSettings);
-        if(updates.pngSettings) setPngSettings(updates.pngSettings);
+        const cleanUpdates = Object.fromEntries(
+            Object.entries(updates).filter(([, value]) => value !== undefined)
+        ) as typeof updates;
 
-        // Persist data
+        if (Object.keys(cleanUpdates).length === 0) {
+            return;
+        }
+
+        const newState: { [key: string]: any } = {};
+        if ('scheduleData' in cleanUpdates) newState.scheduleData = cleanUpdates.scheduleData;
+        if ('title' in cleanUpdates) newState.title = cleanUpdates.title;
+        if ('textExportSettings' in cleanUpdates) newState.textExportSettings = cleanUpdates.textExportSettings;
+        if ('pngSettings' in cleanUpdates) newState.pngSettings = cleanUpdates.pngSettings;
+
+        // Eagerly update local state for responsiveness
+        setScheduleData(prev => newState.scheduleData ?? prev);
+        setTitle(prev => newState.title ?? prev);
+        setTextExportSettings(prev => newState.textExportSettings ?? prev);
+        setPngSettings(prev => newState.pngSettings ?? prev);
+
         if (docRef) {
-            docRef.set(newState, { merge: true })
+            const firestoreUpdates: { [key: string]: any } = {};
+            if ('scheduleData' in cleanUpdates) firestoreUpdates.schedule = cleanUpdates.scheduleData;
+            if ('title' in cleanUpdates) firestoreUpdates.title = cleanUpdates.title;
+            if ('textExportSettings' in cleanUpdates) firestoreUpdates.textExportSettings = cleanUpdates.textExportSettings;
+            if ('pngSettings' in cleanUpdates) firestoreUpdates.pngSettings = cleanUpdates.pngSettings;
+
+            docRef.update(firestoreUpdates)
                 .catch((error: any) => console.error("Error saving data to Firestore:", error));
         } else {
-            if(updates.scheduleData) localStorage.setItem('scheduleData', JSON.stringify(updates.scheduleData));
-            if(updates.title) localStorage.setItem('scheduleTitle', updates.title);
-            if(updates.textExportSettings) localStorage.setItem('textExportSettings', JSON.stringify(updates.textExportSettings));
-            if(updates.pngSettings) localStorage.setItem('pngSettings', JSON.stringify(updates.pngSettings));
+            if ('scheduleData' in cleanUpdates) localStorage.setItem('scheduleData', JSON.stringify(cleanUpdates.scheduleData!));
+            if ('title' in cleanUpdates) localStorage.setItem('title', cleanUpdates.title!);
+            if ('textExportSettings' in cleanUpdates) localStorage.setItem('textExportSettings', JSON.stringify(cleanUpdates.textExportSettings!));
+            if ('pngSettings' in cleanUpdates) localStorage.setItem('pngSettings', JSON.stringify(cleanUpdates.pngSettings!));
         }
-    }, [docRef, scheduleData, title, textExportSettings, pngSettings]);
+    }, [docRef]);
 
     useEffect(() => {
         // Debounced save for text settings
@@ -2129,7 +2132,9 @@ const App: React.FC = () => {
     };
 
     const handleDayClick = (day: CalendarDay) => {
-        if (day.isCurrentMonth) {
+        if (isDeleteMode) {
+            toggleDateForDeletion(day);
+        } else if (day.isCurrentMonth) {
             setSelectedDay(day.date);
             setIsSlotEditorOpen(true);
         }
@@ -2147,7 +2152,7 @@ const App: React.FC = () => {
       
       if(copiedSlots) {
         pastedDays.forEach(pastedKey => {
-            const pastedSlots = copiedSlots.map(slot => ({...slot, state: 'available'}as Slot));
+            const pastedSlots = copiedSlots.map(slot => ({...slot, state: 'available'}) as Slot);
             if (pastedSlots.length > 0) {
                 newSchedule[pastedKey] = { status: 'available', slots: pastedSlots };
             } else {
@@ -2160,6 +2165,7 @@ const App: React.FC = () => {
     };
 
     const handleToggleSlotState = (date: Date, time: string) => {
+        if (isDeleteMode) return;
         const dateKey = formatDateKey(date);
         const dayData = scheduleData[dateKey];
         if (!dayData || dayData.status !== 'available') return;
@@ -2177,6 +2183,68 @@ const App: React.FC = () => {
     const handleTitleChange = (newTitle: string) => {
         updateAndSaveState({ title: newTitle });
     };
+
+    // --- DELETE MODE LOGIC ---
+    const handleToggleDeleteMode = () => {
+        if (isDeleteMode) {
+            // Cancel delete mode
+            setIsDeleteMode(false);
+            setDatesToDelete(new Set());
+        } else {
+            // Enter delete mode, but don't select anything by default
+            setIsDeleteMode(true);
+            setDatesToDelete(new Set());
+        }
+    };
+    
+    const toggleDateForDeletion = (day: CalendarDay) => {
+        if (!day.isCurrentMonth || !scheduleData[formatDateKey(day.date)]) return;
+        
+        const key = formatDateKey(day.date);
+        const newSet = new Set(datesToDelete);
+        if (newSet.has(key)) {
+            newSet.delete(key);
+        } else {
+            newSet.add(key);
+        }
+        setDatesToDelete(newSet);
+    };
+
+    const deletableKeysInMonth = useMemo(() => {
+        return Object.keys(scheduleData).filter(key => {
+            const date = new Date(key);
+            return date.getFullYear() === currentDate.getFullYear() && date.getMonth() === currentDate.getMonth();
+        });
+    }, [scheduleData, currentDate]);
+
+    const handleSelectAllForDeletion = () => {
+        const allSelected = datesToDelete.size === deletableKeysInMonth.length;
+        if (allSelected) {
+            setDatesToDelete(new Set()); // Deselect all
+        } else {
+            setDatesToDelete(new Set(deletableKeysInMonth)); // Select all
+        }
+    };
+    
+    const handleConfirmDelete = () => {
+        if (datesToDelete.size === 0) {
+            setIsDeleteMode(false);
+            return;
+        }
+        
+        const newSchedule = { ...scheduleData };
+        datesToDelete.forEach(key => {
+            delete newSchedule[key];
+        });
+        
+        // This update is now reliable
+        updateAndSaveState({ scheduleData: newSchedule });
+
+        // Exit delete mode
+        setIsDeleteMode(false);
+        setDatesToDelete(new Set());
+    };
+    // --- END DELETE MODE LOGIC ---
     
     const loginPromptContent = isFirebaseConfigured && !user ? <LoginPrompt onLoginClick={() => setIsAuthModalOpen(true)} /> : null;
 
@@ -2212,42 +2280,79 @@ const App: React.FC = () => {
             >
                 <div className="flex items-center justify-between mb-4">
                     <button onClick={() => handleMonthChange(-1)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><ChevronLeftIcon className="text-gray-600 dark:text-gray-300"/></button>
-                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-100">{`${currentDate.getFullYear()} 年 ${MONTH_NAMES[currentDate.getMonth()]}`}</h2>
+                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-100" translate="no">{`${currentDate.getFullYear()} 年 ${MONTH_NAMES[currentDate.getMonth()]}`}</h2>
                     <button onClick={() => handleMonthChange(1)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><ChevronRightIcon className="text-gray-600 dark:text-gray-300"/></button>
                 </div>
-                <div className="flex items-center justify-center mb-4">
-                    <div className="inline-flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-2 rounded-lg">
-                       <input 
-                         type="text" 
-                         value={title} 
-                         onChange={(e) => setTitle(e.target.value)} 
-                         onBlur={(e) => handleTitleChange(e.target.value)}
-                         className="bg-transparent text-center font-semibold text-gray-700 dark:text-gray-200 focus:outline-none"
-                       />
-                       <EditIcon className="text-gray-500 dark:text-gray-400"/>
-                    </div>
+                <div className="relative flex items-center justify-center mb-4">
+                    {isDeleteMode ? (
+                        <div className="flex items-center gap-2">
+                             <button onClick={handleToggleDeleteMode} className="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition-colors">取消</button>
+                             <button onClick={handleSelectAllForDeletion} className="bg-white text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-100 dark:bg-gray-600 dark:text-gray-100 dark:hover:bg-gray-500 border border-gray-300 dark:border-gray-500 transition-colors">
+                                {datesToDelete.size === deletableKeysInMonth.length ? '取消全選' : '全選'}
+                             </button>
+                            <button 
+                                onClick={handleConfirmDelete} 
+                                disabled={datesToDelete.size === 0}
+                                className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <CheckIcon className="w-4 h-4" />確認刪除 ({datesToDelete.size})
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="inline-flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-2 rounded-lg">
+                               <input 
+                                 type="text" 
+                                 value={title} 
+                                 onChange={(e) => setTitle(e.target.value)} 
+                                 onBlur={(e) => handleTitleChange(e.target.value)}
+                                 className="bg-transparent text-center font-semibold text-gray-700 dark:text-gray-200 focus:outline-none"
+                                 translate="no"
+                               />
+                               <EditIcon className="text-gray-500 dark:text-gray-400"/>
+                            </div>
+                            <button onClick={handleToggleDeleteMode} className="absolute right-0 p-2 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors" title="清除資料">
+                                <TrashIcon className="h-5 w-5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors" />
+                            </button>
+                        </>
+                    )}
                 </div>
                 <div className="grid grid-cols-7 gap-1 text-center font-semibold text-gray-500 dark:text-gray-400 text-sm mb-2">
-                    {DAY_NAMES.map(day => <div key={day}>{day}</div>)}
+                    {DAY_NAMES.map(day => <div key={day} translate="no">{day}</div>)}
                 </div>
                 <div className="grid grid-cols-7 gap-1">
                     {calendarDays.map((day) => {
                         const dateKey = formatDateKey(day.date);
                         const dayData = scheduleData[dateKey];
                         const effectiveStatus = getEffectiveStatus(dayData);
+                        const hasData = day.isCurrentMonth && effectiveStatus !== 'empty';
                         
+                        // Delete mode specific styles
+                        const inDeleteModeAndHasData = isDeleteMode && hasData;
+                        const isSelectedForDeletion = datesToDelete.has(dateKey);
+
                         return (
                             <div 
                                 key={day.date.toISOString()}
                                 onClick={() => handleDayClick(day)}
-                                className={`border rounded-lg flex flex-col transition-colors ${day.isCurrentMonth ? 'bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/50 cursor-pointer' : 'bg-gray-50 dark:bg-black/20'} ${day.isToday ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'}`}
+                                className={`relative border rounded-lg flex flex-col transition-all duration-200 
+                                  ${day.isCurrentMonth ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-black/20'}
+                                  ${isSelectedForDeletion ? 'border-red-500' : (day.isToday && !isDeleteMode ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700')}
+                                  ${isDeleteMode ? 'cursor-pointer' : (day.isCurrentMonth ? 'hover:bg-blue-50 dark:hover:bg-blue-900/50 cursor-pointer' : '')}
+                                  ${inDeleteModeAndHasData ? 'animate-pulse' : ''}
+                                `}
                             >
-                                <span className={`self-center p-2 text-sm font-semibold flex-shrink-0 ${!day.isCurrentMonth ? 'text-gray-400 dark:text-gray-600' : 'text-gray-800 dark:text-gray-200'}`}>
+                                {inDeleteModeAndHasData && isSelectedForDeletion && (
+                                    <div className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center pointer-events-none border-2 border-white dark:border-gray-800">
+                                        <CheckIcon className="w-3 h-3 text-white" strokeWidth={3} />
+                                    </div>
+                                )}
+                                <span className={`self-center p-2 text-sm font-semibold flex-shrink-0 ${!day.isCurrentMonth ? 'text-gray-400 dark:text-gray-600' : 'text-gray-800 dark:text-gray-200'}`} translate="no">
                                     {day.date.getDate()}
                                 </span>
                                 {day.isCurrentMonth && effectiveStatus !== 'available' && effectiveStatus !== 'empty' && (
                                     <div className="flex-grow flex items-center justify-center p-1">
-                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 text-center">{DAY_STATUS_TEXT_MAP[effectiveStatus]}</span>
+                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 text-center" translate="no">{DAY_STATUS_TEXT_MAP[effectiveStatus]}</span>
                                     </div>
                                 )}
                                 {dayData?.slots && dayData.slots.length > 0 && day.isCurrentMonth && effectiveStatus === 'available' && (
@@ -2256,8 +2361,13 @@ const App: React.FC = () => {
                                         {dayData.slots.map(slot => (
                                             <div 
                                                 key={slot.time}
-                                                onClick={(e) => { e.stopPropagation(); handleToggleSlotState(day.date, slot.time); }}
-                                                className={`text-[9px] font-bold px-1 py-1 rounded-md cursor-pointer transition-colors leading-none 
+                                                onClick={(e) => { 
+                                                    if (isDeleteMode) return;
+                                                    e.stopPropagation(); 
+                                                    handleToggleSlotState(day.date, slot.time); 
+                                                }}
+                                                className={`text-[9px] font-bold px-1 py-1 rounded-md transition-colors leading-none 
+                                                  ${isDeleteMode ? 'cursor-default' : 'cursor-pointer'}
                                                   ${slot.state === 'available' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800' : 'bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 line-through'}`}
                                             >
                                                 {slot.time}
