@@ -115,30 +115,33 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
             
-            const styleNodeId = 'dynamic-font-for-export';
+            const styleNode = document.createElement('style');
             
             try {
                 // Step 1: Get the self-contained @font-face CSS string with Base64 data.
                 setLoadingMessage('正在內嵌字體...');
                 const fontEmbedCSS = await embedFontForExport(selectedFont);
-
-                // Step 2: Manually inject the font CSS into the document head.
-                const styleNode = document.createElement('style');
-                styleNode.id = styleNodeId;
                 styleNode.innerHTML = fontEmbedCSS;
-                document.head.appendChild(styleNode);
 
-                // Step 3: Crucially, wait for the browser to acknowledge and load the font.
+                // Step 2: **THE DEFINITIVE FIX** - Inject the style node directly into the component
+                // that will be exported. This ensures that when html-to-image clones
+                // the node, the font styles are part of the cloned tree, which is
+                // far more reliable on iOS/WebKit than injecting into document.head.
+                exportNode.appendChild(styleNode);
+
+                // Step 3: Wait for the browser to acknowledge and load the font.
+                // This acts as a safeguard to ensure the font is ready for rendering.
                 setLoadingMessage('等待字體渲染...');
                 const primaryFontFamily = getPrimaryFamily(selectedFont.id);
                 await document.fonts.load(`1em "${primaryFontFamily}"`);
                 
-                // Step 4 (Insurance for iOS): Wait for a repaint cycle.
+                // Step 4 (Insurance for iOS): Wait for a full repaint cycle.
                 await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
                 setLoadingMessage('正在繪製圖片...');
                 
-                // Step 5: Call html-to-image. The font is now globally available.
+                // Step 5: Call html-to-image. The font is now guaranteed to be available
+                // within the cloned DOM environment.
                 const dataUrl = await htmlToImage.toPng(exportNode, {
                     quality: 1,
                     pixelRatio: 2,
@@ -159,10 +162,9 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             } catch (error) {
                 throw error;
             } finally {
-                // Step 6: Clean up by removing the injected style node.
-                const nodeToRemove = document.getElementById(styleNodeId);
-                if (nodeToRemove) {
-                    nodeToRemove.remove();
+                // Step 6: Clean up by removing the injected style node, regardless of success or failure.
+                if (styleNode.parentNode) {
+                    styleNode.parentNode.removeChild(styleNode);
                 }
             }
         };
