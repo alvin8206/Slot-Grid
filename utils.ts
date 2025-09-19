@@ -1,5 +1,32 @@
-// utils.ts
+// utils/ts
 import type { DayData, DayStatus } from './types';
+
+export const parseColor = (colorStr: string): { hex: string; alpha: number } => {
+    if (!colorStr || typeof colorStr !== 'string') return { hex: '#000000', alpha: 1 };
+    if (colorStr === 'transparent') return { hex: '#000000', alpha: 0 };
+    if (colorStr.startsWith('#')) {
+        return { hex: colorStr.toLowerCase(), alpha: 1 };
+    }
+    if (colorStr.startsWith('rgb')) {
+        const parts = colorStr.match(/[\d.]+/g);
+        if (!parts || parts.length < 3) return { hex: '#000000', alpha: 1 };
+        const [r, g, b] = parts.map(Number);
+        const toHex = (c: number) => ('0' + c.toString(16)).slice(-2);
+        const hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+        const alpha = parts.length > 3 ? parseFloat(parts[3]) : 1;
+        return { hex, alpha };
+    }
+    return { hex: '#000000', alpha: 1 }; // Fallback for unknown formats
+};
+
+export const hexToRgb = (hex: string): { r: number, g: number, b: number } | null => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : null;
+};
 
 export const DAY_STATUS_TEXT_MAP: Record<DayStatus | 'empty', string> = {
   available: '可預約',
