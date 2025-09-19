@@ -10,7 +10,7 @@ import LoginPrompt from './components/LoginPrompt';
 import SlotEditorModal from './components/SlotEditorModal';
 import TextExportModal from './components/TextExportModal';
 import PngExportModal from './components/PngExportModal';
-import { FONT_OPTIONS } from './components/PngExportModal';
+import { FONT_OPTIONS } from './components/PngExportModal.helpers';
 import { formatDateKey, getEffectiveStatus, DAY_STATUS_TEXT_MAP } from './utils';
 
 // A simple interface for the user object from Firebase Auth
