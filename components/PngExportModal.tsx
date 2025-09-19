@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode } from '../types';
 import { DownloadIcon, SpinnerIcon } from './icons';
@@ -86,14 +87,22 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     }, [isOpen, pngSettings.font, selectedFontStatus, loadFont]);
 
     // --- Event Handlers ---
+    // FINAL FIX: This is the definitive solution. We proactively load the font
+    // the moment the user selects it, decoupling the slow font-loading process
+    // from the time-sensitive export process.
     const handleFontSelect = useCallback(async (fontOption: typeof FONT_OPTIONS[0]) => {
         const { id } = fontOption;
+        // Immediately update the setting to trigger UI changes.
         updateSetting('font', id);
-        if ((fontStatuses[id] || 'idle') !== 'loaded') {
+        
+        // If the font isn't already loaded or loading, start the process.
+        if ((fontStatuses[id] || 'idle') === 'idle') {
             try {
+                // This now pre-warms the cache. By the time the user clicks "export",
+                // this process will have been completed for seconds or minutes.
                 await loadFont(fontOption);
             } catch (error) {
-                alert(`無法載入字體：${fontOption.name}。請稍後再試。`);
+                alert(`無法載入字體：${fontOption.name}。請檢查您的網路連線。`);
             }
         }
     }, [fontStatuses, loadFont, updateSetting]);
@@ -108,32 +117,26 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         setExportStage('generating_image');
         setLoadingMessage('準備資源...');
         
-        // This will be our injected style element.
         const styleElement = document.createElement('style');
 
         try {
-            // Step 1: Prepare the self-contained font resource.
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
+            
+            // This function now primarily retrieves from cache, making it near-instant.
             const fontEmbedCSS = await embedFontForExport(selectedFont);
             
-            // Step 2: Inject the font styles directly into the node that will be cloned.
-            // This is the most robust way to ensure styles are available in the sandboxed environment.
             styleElement.textContent = fontEmbedCSS;
             exportNode.appendChild(styleElement);
             
-            // Step 3: Wait for the next animation frame. This is crucial to ensure the DOM
-            // update (style injection) is processed by the browser before html-to-image reads the DOM.
+            // Wait for the DOM to update with the injected style.
             await new Promise(resolve => requestAnimationFrame(resolve));
             
-            // Step 4: Execute the conversion. We are NOT using any special font options,
-            // relying on the injected style tag being part of the standard DOM.
             setLoadingMessage('正在生成圖片...');
             const dataUrl = await htmlToImage.toPng(exportNode, {
                 backgroundColor: propsForContent.bgColor === 'transparent' ? null : propsForContent.bgColor,
                 quality: 1.0,
                 pixelRatio: 2,
-                // Add a filter to avoid issues with external resources that might still be in the main document's head.
                 filter: (node: HTMLElement) => {
                     if (node.tagName === 'LINK' && node.hasAttribute('href') && (node as HTMLLinkElement).href.includes('fonts.googleapis.com')) {
                         return false;
@@ -150,7 +153,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         } finally {
-            // Step 5: Clean up. ALWAYS remove the injected style element.
             if (exportNode.contains(styleElement)) {
                 exportNode.removeChild(styleElement);
             }
