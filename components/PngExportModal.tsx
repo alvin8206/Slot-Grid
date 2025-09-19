@@ -4,7 +4,6 @@ import { DownloadIcon, SpinnerIcon } from './icons';
 import Modal from './Modal';
 import PngExportContent from './PngExportContent';
 import { embedFontForExport } from '../fontUtils';
-import { getPrimaryFamily } from '../fonts';
 import { FONT_OPTIONS, ExportStage, PngSettingsTab } from './PngExportModal.helpers';
 import { useFontLoader, usePreviewScaling } from './PngExportModal.hooks';
 import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
@@ -12,7 +11,50 @@ import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
 // This declaration is necessary because html-to-image is loaded from a CDN.
 declare const htmlToImage: {
   toPng: <T extends HTMLElement>(node: T, options?: object) => Promise<string>;
+  toSvg: <T extends HTMLElement>(node: T, options?: object) => Promise<string>;
 };
+
+/**
+ * The definitive, two-stage rendering function to convert a self-contained SVG into a PNG Data URL.
+ * This process is deterministic and avoids race conditions inherent in direct PNG generation.
+ * @param svgDataUrl The `data:image/svg+xml` URL of the generated SVG.
+ * @param width The desired output width of the PNG.
+ * @param height The desired output height of the PNG.
+ * @returns A Promise that resolves with the PNG Data URL.
+ */
+const renderSvgToPng = (svgDataUrl: string, width: number, height: number): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas dimensions with a pixel ratio for high-resolution output.
+    const pixelRatio = 2;
+    canvas.width = width * pixelRatio;
+    canvas.height = height * pixelRatio;
+
+    img.onload = () => {
+      if (ctx) {
+        // Draw the fully rendered SVG image onto the canvas.
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        // Export the canvas content as a PNG. This is a synchronous operation.
+        const pngDataUrl = canvas.toDataURL('image/png', 1.0);
+        resolve(pngDataUrl);
+      } else {
+        reject(new Error('Failed to get canvas 2D context.'));
+      }
+    };
+
+    img.onerror = (error) => {
+      console.error("Error loading SVG into Image object:", error);
+      reject(new Error('The generated SVG could not be loaded for PNG conversion.'));
+    };
+
+    // Start the process by setting the image source to our SVG data.
+    img.src = svgDataUrl;
+  });
+};
+
 
 interface PngExportModalProps {
     isOpen: boolean;
@@ -109,64 +151,39 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
 
         setExportStage('generating_image');
-        const delayPromise = new Promise(resolve => setTimeout(resolve, 2000));
+        const delayPromise = new Promise(resolve => setTimeout(resolve, 1500)); // Ensure minimum display time for UX
 
         const generationTask = async () => {
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
             
-            const styleNode = document.createElement('style');
-            
-            try {
-                // Step 1: Get the self-contained @font-face CSS string with Base64 data.
-                setLoadingMessage('正在內嵌字體...');
-                const fontEmbedCSS = await embedFontForExport(selectedFont);
-                styleNode.innerHTML = fontEmbedCSS;
+            // --- STAGE 1: Generate a self-contained SVG ---
+            setLoadingMessage('正在內嵌字體...');
+            const fontEmbedCSS = await embedFontForExport(selectedFont);
 
-                // Step 2: **THE DEFINITIVE FIX** - Inject the style node directly into the component
-                // that will be exported. This ensures that when html-to-image clones
-                // the node, the font styles are part of the cloned tree, which is
-                // far more reliable on iOS/WebKit than injecting into document.head.
-                exportNode.appendChild(styleNode);
-
-                // Step 3: Wait for the browser to acknowledge and load the font.
-                // This acts as a safeguard to ensure the font is ready for rendering.
-                setLoadingMessage('等待字體渲染...');
-                const primaryFontFamily = getPrimaryFamily(selectedFont.id);
-                await document.fonts.load(`1em "${primaryFontFamily}"`);
-                
-                // Step 4 (Insurance for iOS): Wait for a full repaint cycle.
-                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-                setLoadingMessage('正在繪製圖片...');
-                
-                // Step 5: Call html-to-image. The font is now guaranteed to be available
-                // within the cloned DOM environment.
-                const dataUrl = await htmlToImage.toPng(exportNode, {
-                    quality: 1,
-                    pixelRatio: 2,
-                    backgroundColor: pngSettings.bgColor,
-                    filter: (node: HTMLElement) => {
-                        if (node.tagName === 'LINK') {
-                            const linkNode = node as HTMLLinkElement;
-                            if (linkNode.href && linkNode.href.includes('fonts.googleapis.com')) {
-                                return false;
-                            }
+            setLoadingMessage('生成向量圖 (SVG)...');
+            const svgDataUrl = await htmlToImage.toSvg(exportNode, {
+                quality: 1,
+                fontEmbedCSS: fontEmbedCSS, // Pass the embedded font data directly to the library.
+                backgroundColor: pngSettings.bgColor,
+                filter: (node: HTMLElement) => {
+                    // Filter out external font stylesheets from the main document to prevent CORS errors.
+                    if (node.tagName === 'LINK') {
+                        const linkNode = node as HTMLLinkElement;
+                        if (linkNode.href && linkNode.href.includes('fonts.googleapis.com')) {
+                            return false;
                         }
-                        return true;
-                    },
-                });
-                
-                setGeneratedPngDataUrl(dataUrl);
+                    }
+                    return true;
+                },
+            });
 
-            } catch (error) {
-                throw error;
-            } finally {
-                // Step 6: Clean up by removing the injected style node, regardless of success or failure.
-                if (styleNode.parentNode) {
-                    styleNode.parentNode.removeChild(styleNode);
-                }
-            }
+            // --- STAGE 2: Deterministically render the SVG to a PNG via Canvas ---
+            setLoadingMessage('點陣化圖片 (PNG)...');
+            const { offsetWidth, offsetHeight } = exportNode;
+            const pngDataUrl = await renderSvgToPng(svgDataUrl, offsetWidth, offsetHeight);
+            
+            setGeneratedPngDataUrl(pngDataUrl);
         };
 
         try {
