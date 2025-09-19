@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
-import type { ScheduleData, CalendarDay, PngStyle, Slot, PngExportViewMode, TitleAlign, DayData, DayStatus, PngSettingsState } from './types';
+import type { ScheduleData, CalendarDay, PngStyle, Slot, PngExportViewMode, TitleAlign, DayData, DayStatus, PngSettingsState, TextExportSettingsState } from './types';
 import { MONTH_NAMES, DAY_NAMES, PREDEFINED_SLOTS, MONTH_NAMES_EN, DAY_NAMES_EN } from './constants';
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, CloseIcon, TrashIcon, CopyIcon, ClipboardIcon, CalendarIcon, EditIcon, RainbowIcon, UserIcon, GoogleIcon, CheckIcon, SpinnerIcon } from './components/icons';
 import { auth, db, googleProvider, isFirebaseConfigured } from './firebaseClient';
@@ -205,15 +205,17 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerCon
             </div>
         </main>
         
-        <footer 
-            ref={footerRef}
-            className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-white dark:from-gray-800 to-white/0 dark:to-gray-800/0 backdrop-blur-sm pt-8 pb-4"
-            style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
-        >
-            <div className="container mx-auto px-4">
-                 {footerContent}
-            </div>
-        </footer>
+        {footerContent && (
+            <footer 
+                ref={footerRef}
+                className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-white dark:from-gray-800 to-white/0 dark:to-gray-800/0 backdrop-blur-sm pt-8 pb-4"
+                style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
+            >
+                <div className="container mx-auto px-4">
+                     {footerContent}
+                </div>
+            </footer>
+        )}
       </div>
     </div>
   );
@@ -535,7 +537,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
   return (
     <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer}>
         <div className="mb-4">
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">設定整日狀態</h3>
+            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">設定整日狀態</h2>
             <div className="grid grid-cols-3 gap-2">
                 <StatusButton status="dayOff" label="設為休假" />
                 <StatusButton status="closed" label="設為公休" />
@@ -571,7 +573,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
             {copiedSlots && isMultiPasteExpanded && (
                 <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-semibold text-blue-800 dark:text-blue-300">貼上至多個日期</h3>
+                        <h3 className="font-semibold text-blue-800 dark:text-blue-300">貼上至多個日期</h2>
                         <button 
                             onClick={handlePasteToAll}
                             className="text-xs bg-blue-200 text-blue-800 font-semibold px-2 py-1 rounded-md hover:bg-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 transition-colors"
@@ -603,7 +605,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
             )}
 
             <div>
-                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">已選時段 ({currentSlotsArray.length})</h3>
+                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">已選時段 ({currentSlotsArray.length})</h2>
                 <div className="bg-white dark:bg-gray-800 p-3 rounded-lg min-h-[80px] border dark:border-gray-700">
                     {currentSlotsArray.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
@@ -621,7 +623,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
             </div>
             
             <div>
-                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">快速新增</h3>
+                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">快速新增</h2>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {PREDEFINED_SLOTS.map(slot => (
                         <button key={slot} onClick={() => handleQuickAdd(slot)} disabled={localSlots.has(slot)} className="p-2 rounded-lg text-sm text-center transition-colors font-medium border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600 disabled:bg-gray-200 dark:disabled:bg-gray-800/50 disabled:text-gray-400 disabled:cursor-not-allowed">{slot}</button>
@@ -630,7 +632,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
             </div>
 
             <div>
-                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">自訂時段</h3>
+                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">自訂時段</h2>
                 <div className="flex gap-2">
                     <input 
                         type="text"
@@ -657,19 +659,41 @@ interface TextExportModalProps {
     title: string;
     currentDate: Date;
     loginPromptContent?: React.ReactNode;
+    textExportSettings: TextExportSettingsState;
+    setTextExportSettings: React.Dispatch<React.SetStateAction<TextExportSettingsState>>;
 }
 
-const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, scheduleData, title, currentDate, loginPromptContent }) => {
+const TextExportModal: React.FC<TextExportModalProps> = ({
+    isOpen,
+    onClose,
+    scheduleData,
+    title,
+    currentDate,
+    loginPromptContent,
+    textExportSettings,
+    setTextExportSettings
+}) => {
     const [copyButtonText, setCopyButtonText] = useState('複製內文');
-    const [layout, setLayout] = useState<'default' | 'compact'>('default');
-    const [language, setLanguage] = useState<'zh' | 'en'>('zh');
-    const [includeYear, setIncludeYear] = useState(true);
-    const [showBooked, setShowBooked] = useState(false);
-    const [bookedStyle, setBookedStyle] = useState<'strikethrough' | 'annotation'>('strikethrough');
+
+    const {
+        layout, language, includeTitle, includeYear, showMonth,
+        showBooked, showDayOfWeek, showFullyBooked, showDayOff, bookedStyle
+    } = textExportSettings;
+
+    const updateSetting = <K extends keyof TextExportSettingsState>(key: K, value: TextExportSettingsState[K]) => {
+        setTextExportSettings(prev => ({ ...prev, [key]: value }));
+    };
     
     const generatedText = useMemo(() => {
-        let text = `${title}\n\n`;
+        type TextExportLine = 
+            | { prefix: string; content: string; type: 'status' }
+            | { prefix: string; content: string[]; type: 'slots' };
         
+        let text = '';
+        if (includeTitle) {
+            text += `${title}\n\n`;
+        }
+
         const currentYear = currentDate.getFullYear();
         const currentMonth = currentDate.getMonth();
 
@@ -678,63 +702,107 @@ const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, sche
                 const date = new Date(key);
                 return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
             })
-            .sort((a,b) => a.localeCompare(b));
-        
-        if (sortedDates.length === 0) {
-            return language === 'zh' ? "此月份尚未安排任何時段。" : "No slots scheduled for this month yet.";
+            .sort((a, b) => a.localeCompare(b));
+
+        const linesData = sortedDates
+            .map(dateKey => {
+                const date = new Date(dateKey);
+                const dayData = scheduleData[dateKey];
+                const effectiveStatus = getEffectiveStatus(dayData);
+
+                if (effectiveStatus === 'empty') return null;
+                if (effectiveStatus === 'fullyBooked' && !showFullyBooked) return null;
+                if ((effectiveStatus === 'dayOff' || effectiveStatus === 'closed') && !showDayOff) return null;
+
+                const year = date.getFullYear();
+                const month = (date.getMonth() + 1).toString();
+                const day = date.getDate().toString();
+
+                const datePart = showMonth ? `${month}/${day}` : day;
+                let datePrefix = includeYear ? `${year}/${datePart}` : datePart;
+                
+                if (showDayOfWeek) {
+                    if (language === 'zh') {
+                        const dayOfWeek = DAY_NAMES[date.getDay()];
+                        datePrefix += `（${dayOfWeek}）`;
+                    } else {
+                        const dayOfWeek = DAY_NAMES_EN[date.getDay()];
+                        datePrefix += ` (${dayOfWeek})`;
+                    }
+                }
+
+                if (effectiveStatus !== 'available') {
+                    return { prefix: datePrefix, content: DAY_STATUS_TEXT_MAP[effectiveStatus], type: 'status' as const };
+                }
+
+                const relevantSlots = dayData?.slots || [];
+                const finalSlots = showBooked ? relevantSlots : relevantSlots.filter(s => s.state === 'available');
+
+                if (finalSlots.length === 0) return null;
+
+                const slotsToDisplay = finalSlots.map(slot => {
+                    if (slot.state === 'booked') {
+                        if (bookedStyle === 'strikethrough') {
+                            return applyStrikethrough(slot.time);
+                        }
+                        return `${slot.time} ${language === 'zh' ? '(已預約)' : '(Booked)'}`;
+                    }
+                    return slot.time;
+                });
+
+                return { prefix: datePrefix, content: slotsToDisplay, type: 'slots' as const };
+            })
+            .filter((line): line is TextExportLine => line !== null);
+
+        if (linesData.length === 0) {
+            if (includeTitle) {
+                return text.trim();
+            }
+            return language === 'zh' ? "根據目前的篩選條件，沒有可顯示的時段。" : "No available slots to display with the current filters.";
         }
         
-        sortedDates.forEach(dateKey => {
-            const date = new Date(dateKey);
-            const dayData = scheduleData[dateKey];
-            const effectiveStatus = getEffectiveStatus(dayData); // Use the smart helper
-
-            if (effectiveStatus === 'empty') {
-                return; // Skip empty days entirely
-            }
-
-            const year = date.getFullYear();
-            const month = (date.getMonth() + 1).toString();
-            const day = date.getDate().toString();
-            const dayOfWeek = language === 'zh' ? DAY_NAMES[date.getDay()] : DAY_NAMES_EN[date.getDay()];
-            const dateString = includeYear ? `${year}/${month}/${day}` : `${month}/${day}`;
-            
-            const statusText = DAY_STATUS_TEXT_MAP[effectiveStatus];
-
-            if (effectiveStatus !== 'available') {
-                text += `${dateString} (${dayOfWeek}): ${statusText}\n`;
-                if (layout === 'default') text += '\n';
-                return;
-            }
-            
-            // This part now only runs for 'available' days
-            const relevantSlots = dayData?.slots || [];
-            const finalSlots = showBooked ? relevantSlots : relevantSlots.filter(s => s.state === 'available');
-
-            if (finalSlots.length === 0) return;
-
-            const slotsToDisplay = finalSlots.map(slot => {
-                if (slot.state === 'booked') {
-                    if (bookedStyle === 'strikethrough') {
-                        return applyStrikethrough(slot.time);
-                    }
-                    return `${slot.time} ${language === 'zh' ? '(已預約)' : '(Booked)'}`;
+        const getTextWidth = (str: string): number => {
+            let width = 0;
+            for (let i = 0; i < str.length; i++) {
+                if (str.charCodeAt(i) > 255) {
+                    width += 2;
+                } else {
+                    width += 1;
                 }
-                return slot.time;
-            });
-
-            if (layout === 'compact') {
-                 text += `${dateString} (${dayOfWeek}): ${slotsToDisplay.join(', ')}\n`;
-            } else { // default
-                text += `${dateString} (${dayOfWeek})\n`;
-                slotsToDisplay.forEach(slot => {
-                    text += `- ${slot}\n`;
-                });
-                text += '\n';
             }
-        });
+            return width;
+        };
+
+        if (layout === 'compact') {
+            const linesWithWidth = linesData.map(line => ({ ...line, width: getTextWidth(line.prefix) }));
+            const maxPrefixWidth = Math.max(0, ...linesWithWidth.map(line => line.width));
+            
+            const textContent = linesWithWidth.map(line => {
+                const contentStr = Array.isArray(line.content) ? line.content.join(', ') : line.content;
+                const padding = ' '.repeat(Math.max(0, maxPrefixWidth - line.width));
+                return `${line.prefix}${padding}   ${contentStr}`;
+            }).join('\n');
+            text += textContent;
+        } else if (layout === 'double-row') {
+            const textContent = linesData.map(line => {
+                const contentStr = Array.isArray(line.content) ? line.content.join(', ') : line.content;
+                return `${line.prefix}\n${contentStr}`;
+            }).join('\n\n');
+            text += textContent;
+        } else { // default layout
+            const textContent = linesData.map(line => {
+                if (line.type === 'slots') {
+                    const slotsStr = line.content.map(s => `- ${s}`).join('\n');
+                    return `${line.prefix}\n${slotsStr}`;
+                }
+                return `${line.prefix}: ${line.content}`;
+            }).join('\n\n');
+            text += textContent;
+        }
+
         return text.trim();
-    }, [scheduleData, title, layout, language, includeYear, currentDate, showBooked, bookedStyle]);
+    }, [scheduleData, title, currentDate, textExportSettings]);
+
 
     const handleCopy = () => {
         navigator.clipboard.writeText(generatedText).then(() => {
@@ -762,27 +830,76 @@ const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, sche
     return (
         <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer}>
             <div className="space-y-6">
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
+                    <textarea 
+                        readOnly 
+                        value={generatedText}
+                        className="w-full h-48 md:h-56 bg-transparent resize-none border-none focus:ring-0 text-sm text-gray-800 dark:text-gray-200"
+                    />
+                </div>
+
                 <div className="space-y-2">
                     <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">排版</label>
-                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                        <button onClick={() => setLayout('default')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'default' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>詳細</button>
-                        <button onClick={() => setLayout('compact')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'compact' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>緊湊</button>
+                    <div className="grid grid-cols-3 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                        <button onClick={() => updateSetting('layout', 'default')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'default' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>詳細</button>
+                        <button onClick={() => updateSetting('layout', 'compact')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'compact' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>緊湊</button>
+                        <button onClick={() => updateSetting('layout', 'double-row')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'double-row' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>雙排</button>
                     </div>
                 </div>
 
                 <div className="space-y-2">
                     <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">語言</label>
                     <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                        <button onClick={() => setLanguage('zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>中文</button>
-                        <button onClick={() => setLanguage('en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>English</button>
+                        <button onClick={() => updateSetting('language', 'zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>中文</button>
+                        <button onClick={() => updateSetting('language', 'en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>English</button>
                     </div>
                 </div>
                 
                 <div className="space-y-3">
+                    <label htmlFor="include-title" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示標題</span>
+                        <div className="relative">
+                            <input type="checkbox" id="include-title" className="sr-only peer" checked={includeTitle} onChange={e => updateSetting('includeTitle', e.target.checked)} />
+                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                        </div>
+                    </label>
                     <label htmlFor="include-year" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">包含年份</span>
                         <div className="relative">
-                            <input type="checkbox" id="include-year" className="sr-only peer" checked={includeYear} onChange={e => setIncludeYear(e.target.checked)} />
+                            <input type="checkbox" id="include-year" className="sr-only peer" checked={includeYear} onChange={e => updateSetting('includeYear', e.target.checked)} />
+                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                        </div>
+                    </label>
+                    <label htmlFor="show-month" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示月份</span>
+                        <div className="relative">
+                            <input type="checkbox" id="show-month" className="sr-only peer" checked={showMonth} onChange={e => updateSetting('showMonth', e.target.checked)} />
+                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                        </div>
+                    </label>
+                    <label htmlFor="show-day-of-week" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示星期</span>
+                        <div className="relative">
+                            <input type="checkbox" id="show-day-of-week" className="sr-only peer" checked={showDayOfWeek} onChange={e => updateSetting('showDayOfWeek', e.target.checked)} />
+                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                        </div>
+                    </label>
+                    <label htmlFor="show-day-off" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示休假日</span>
+                        <div className="relative">
+                            <input type="checkbox" id="show-day-off" className="sr-only peer" checked={showDayOff} onChange={e => updateSetting('showDayOff', e.target.checked)} />
+                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                        </div>
+                    </label>
+                     <label htmlFor="show-fully-booked" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示已額滿日</span>
+                        <div className="relative">
+                            <input type="checkbox" id="show-fully-booked" className="sr-only peer" checked={showFullyBooked} onChange={e => updateSetting('showFullyBooked', e.target.checked)} />
                             <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
                             <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
                         </div>
@@ -790,7 +907,7 @@ const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, sche
                     <label htmlFor="show-booked" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示已預約時段</span>
                         <div className="relative">
-                            <input type="checkbox" id="show-booked" className="sr-only peer" checked={showBooked} onChange={e => setShowBooked(e.target.checked)} />
+                            <input type="checkbox" id="show-booked" className="sr-only peer" checked={showBooked} onChange={e => updateSetting('showBooked', e.target.checked)} />
                             <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
                             <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
                         </div>
@@ -799,19 +916,11 @@ const TextExportModal: React.FC<TextExportModalProps> = ({ isOpen, onClose, sche
                         <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
                             <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
                             <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                                <button onClick={() => setBookedStyle('strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>刪除線</button>
-                                <button onClick={() => setBookedStyle('annotation')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'annotation' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>文字註記</button>
+                                <button onClick={() => updateSetting('bookedStyle', 'strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>刪除線</button>
+                                <button onClick={() => updateSetting('bookedStyle', 'annotation')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'annotation' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>文字註記</button>
                             </div>
                         </div>
                     )}
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                    <textarea 
-                        readOnly 
-                        value={generatedText}
-                        className="w-full h-48 md:h-56 bg-transparent resize-none border-none focus:ring-0 text-sm text-gray-800 dark:text-gray-200"
-                    />
                 </div>
             </div>
         </Modal>
@@ -972,7 +1081,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         exportViewMode, pngStyle, bgColor, textColor, borderColor, blockColor, showShadow,
         showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness,
         fontScale, font, language, horizontalGap, verticalGap, titleAlign,
-        dayOffColor, closedColor, fullyBookedColor,
+        dayOffColor, closedColor, fullyBookedColor, slotLayout,
     } = pngSettings;
 
     const updateSetting = <K extends keyof PngSettingsState>(key: K, value: PngSettingsState[K]) => {
@@ -1115,70 +1224,56 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         setExportStage('generating_image');
         setLoadingMessage('正在準備字體...');
 
-        const selectedFont = FONT_OPTIONS.find(f => f.id === font);
-        if (!selectedFont) {
-            alert("錯誤：找不到選擇的字體。");
-            setIsExporting(false);
-            setExportStage('configuring');
-            return;
-        }
-        
-        const styleElementId = 'temp-font-for-export';
+        const MIN_EXPORT_DURATION = 3500;
+        const delayPromise = new Promise(resolve => setTimeout(resolve, MIN_EXPORT_DURATION));
+
+        const generationTask = async () => {
+            const selectedFont = FONT_OPTIONS.find(f => f.id === font);
+            if (!selectedFont) {
+                throw new Error("錯誤：找不到選擇的字體。");
+            }
+            
+            const styleElementId = 'temp-font-for-export';
+
+            try {
+                const fontEmbedCSS = await embedFontForExport(selectedFont);
+                const styleElement = document.createElement('style');
+                styleElement.id = styleElementId;
+                styleElement.innerHTML = fontEmbedCSS;
+                document.head.appendChild(styleElement);
+                
+                const fontFamilyToLoad = getPrimaryFamily(selectedFont.id);
+                await document.fonts.load(`16px "${fontFamilyToLoad}"`);
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+                setLoadingMessage('正在繪製高解析度圖片...');
+                const dataUrl = await htmlToImage.toPng(exportNode, {
+                    quality: 1,
+                    pixelRatio: 2,
+                    backgroundColor: bgColor,
+                    fontEmbedCSS: fontEmbedCSS,
+                });
+
+                setGeneratedPngDataUrl(dataUrl);
+            } finally {
+                const tempStyle = document.getElementById(styleElementId);
+                if (tempStyle) {
+                    tempStyle.remove();
+                }
+            }
+        };
 
         try {
-            // STEP 1: Get the self-contained CSS with Base64 font data.
-            const fontEmbedCSS = await embedFontForExport(selectedFont);
-
-            // STEP 2: Inject this CSS into the document so the browser can load it and we can wait for it.
-            const styleElement = document.createElement('style');
-            styleElement.id = styleElementId;
-            styleElement.innerHTML = fontEmbedCSS;
-            document.head.appendChild(styleElement);
-            
-            // STEP 3: Wait for the browser to confirm the INJECTED font is ready.
-            const fontFamilyToLoad = getPrimaryFamily(selectedFont.id);
-            await document.fonts.load(`16px "${fontFamilyToLoad}"`);
-
-            // Force a small delay. Some rendering engines, particularly on mobile (iOS),
-            // may need an extra moment to apply the newly loaded font, even after the
-            // document.fonts.load promise resolves. This helps prevent a race condition.
-            await new Promise(resolve => setTimeout(resolve, 150));
-
-            // STEP 4: Generate the image, providing the CSS to the library for maximum reliability.
-            setLoadingMessage('正在繪製高解析度圖片...');
-            const dataUrl = await htmlToImage.toPng(exportNode, {
-                quality: 1,
-                pixelRatio: 2,
-                backgroundColor: bgColor,
-                fontEmbedCSS: fontEmbedCSS,
-            });
-
-            setGeneratedPngDataUrl(dataUrl);
+            await Promise.all([generationTask(), delayPromise]);
             setExportStage('completed');
-
         } catch (error) {
             console.error('Oops, something went wrong during PNG export!', error);
-            alert('匯出圖片時發生錯誤！');
+            alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         } finally {
-            // STEP 5: Clean up the injected style element.
-            const tempStyle = document.getElementById(styleElementId);
-            if (tempStyle) {
-                tempStyle.remove();
-            }
             setIsExporting(false);
         }
-    }, [font, bgColor, currentDate, localTitle]);
-
-    const handleDownloadFile = useCallback(() => {
-        if (!generatedPngDataUrl) return;
-        const link = document.createElement('a');
-        const monthName = MONTH_NAMES_EN[currentDate.getMonth()];
-        const year = currentDate.getFullYear();
-        link.download = `${localTitle.replace(/ /g, '_')}-${year}-${monthName}.png`;
-        link.href = generatedPngDataUrl;
-        link.click();
-    }, [generatedPngDataUrl, localTitle, currentDate]);
+    }, [font, bgColor, currentDate, localTitle, pngSettings]);
 
     const handleOpenInNewTab = useCallback(async () => {
         if (!generatedPngDataUrl) return;
@@ -1190,6 +1285,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
         } catch (error) {
             console.error('Error opening image in new tab:', error);
+            // Fallback for environments where blob URLs might fail
             window.open(generatedPngDataUrl, '_blank', 'noopener,noreferrer');
         }
     }, [generatedPngDataUrl]);
@@ -1221,21 +1317,16 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     if (!isOpen) return null;
 
     const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{exportStage === 'completed' ? '匯出成功！' : '匯出 PNG 圖片'}</h2>;
-    const footer = (
+    
+    const footer = exportStage === 'completed' ? null : (
         <>
             {loginPromptContent}
-            {exportStage === 'completed' ? (
-                 <button onClick={onClose} className="w-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-                    完成
+            <div className="grid grid-cols-2 gap-3 w-full">
+                <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" disabled={isExporting}>關閉</button>
+                <button onClick={handleStartExport} disabled={isExporting} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-wait">
+                    {isExporting ? <><SpinnerIcon className="w-5 h-5 mr-2" />{loadingMessage}</> : <><DownloadIcon /> 下載 PNG</>}
                 </button>
-            ) : (
-                <div className="grid grid-cols-2 gap-3 w-full">
-                    <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" disabled={isExporting}>關閉</button>
-                    <button onClick={handleStartExport} disabled={isExporting} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-wait">
-                        {isExporting ? <><SpinnerIcon className="w-5 h-5 mr-2" />{loadingMessage}</> : <><DownloadIcon /> 下載 PNG</>}
-                    </button>
-                </div>
-            )}
+            </div>
         </>
     );
     
@@ -1282,263 +1373,293 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 <PngExportContent ref={exportRef} {...propsForContent} />
             </div>
 
-            <div className={`absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex-col items-center justify-center p-4 z-20 ${isExporting || exportStage === 'completed' ? 'flex' : 'hidden'}`}>
-                <div className="w-full flex flex-col items-center">
-                 <div className="relative w-16 h-16 flex items-center justify-center">
-                    <DownloadIcon
-                        className={`w-12 h-12 text-blue-600 transition-all duration-300 
-                            ${isExporting ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-50'}`
-                        }
-                    />
-                    <CheckIcon
-                        className={`w-16 h-16 text-green-500 absolute transition-all duration-300 delay-200
-                            ${exportStage === 'completed' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`
-                        }
-                    />
-                </div>
-
-                <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200 text-center">
-                    {exportStage === 'completed' ? '成功！圖片已準備就緒。' : loadingMessage}
-                </p>
-                
-                 {exportStage === 'completed' && (
-                    <div className="w-full flex flex-col items-center">
-                        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm mt-6">
-                            <button onClick={handleOpenInNewTab} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">
-                                在新分頁開啟
-                            </button>
-                            <button onClick={handleDownloadFile} className="w-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-                                直接下載 .png
-                            </button>
-                        </div>
-                        <AdSlot className="mt-6 w-full" allowedHostnames={['your.app', 'your-short.link', 'bit.ly']} />
-                    </div>
-                 )}
-                </div>
-            </div>
-
-            <div className={`flex flex-col lg:flex-row gap-6 items-start ${exportStage !== 'configuring' ? 'invisible' : ''}`}>
-                <div className="w-full lg:w-1/2 lg:sticky lg:top-0">
-                     <div className="space-y-2">
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">預覽</h3>
-                        <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden max-h-[25vh] lg:max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                            <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out, height 0.2s ease-out' }}>
-                                <PngExportContent {...propsForContent} />
+            {exportStage === 'configuring' ? (
+                <div className="flex flex-col lg:flex-row gap-6 items-start">
+                    <div className="w-full lg:w-1/2 lg:sticky lg:top-0">
+                        <div className="space-y-2">
+                            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">預覽</h3>
+                            <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden max-h-[25vh] lg:max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                                <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out, height 0.2s ease-out' }}>
+                                    <PngExportContent {...propsForContent} />
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                <div className="w-full lg:w-1/2 space-y-4">
-                    <SettingsCard>
-                      <SettingsSection title="顯示範圍">
-                        <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                            <ViewModeButton mode="month" label="完整月曆"/>
-                            <ViewModeButton mode="remaining" label="剩餘月份"/>
-                            <ViewModeButton mode="list" label="清單模式"/>
-                        </div>
-                      </SettingsSection>
-                    </SettingsCard>
-
-                  <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                      <TabButton tab="content" label="內容" />
-                      <TabButton tab="style" label="樣式" />
-                      <TabButton tab="layout" label="排版" />
-                  </div>
-
-                  <div className="space-y-4">
-                    {activeTab === 'content' && (
-                      <>
+                    <div className="w-full lg:w-1/2 space-y-4">
                         <SettingsCard>
-                          <SettingsSection title="標題">
-                            <input type="text" value={localTitle} onChange={e => setLocalTitle(e.target.value)} className="w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100"/>
-                          </SettingsSection>
-                        </SettingsCard>
-                        <SettingsCard>
-                          <SettingsSection title="顯示項目">
-                            <label htmlFor="png-show-title" className="flex items-center justify-between cursor-pointer">
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示主標題</span>
-                                <div className="relative">
-                                    <input type="checkbox" id="png-show-title" className="sr-only peer" checked={showTitle} onChange={e => updateSetting('showTitle', e.target.checked)} />
-                                    <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                                    <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                                </div>
-                            </label>
-                            <label htmlFor="png-show-booked" className="flex items-center justify-between cursor-pointer">
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示已預約時段</span>
-                                <div className="relative">
-                                    <input type="checkbox" id="png-show-booked" className="sr-only peer" checked={showBookedSlots} onChange={e => updateSetting('showBookedSlots', e.target.checked)} />
-                                    <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                                    <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                                </div>
-                            </label>
-                            {showBookedSlots && (
-                                <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
-                                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
-                                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                                        <button onClick={() => updateSetting('bookedStyle', 'strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>畫橫線</button>
-                                        <button onClick={() => updateSetting('bookedStyle', 'fade')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'fade' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>降低透明度</button>
-                                    </div>
-                                </div>
-                            )}
-                          </SettingsSection>
-                        </SettingsCard>
-                        <SettingsCard>
-                            <SettingsSection title="語言">
-                                <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                                    <button onClick={() => updateSetting('language', 'zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>中文</button>
-                                    <button onClick={() => updateSetting('language', 'en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>English</button>
-                                </div>
-                            </SettingsSection>
-                        </SettingsCard>
-                      </>
-                    )}
-                    {activeTab === 'style' && (
-                      <>
-                        {exportViewMode !== 'list' && <SettingsCard>
-                          <SettingsSection title="整體風格">
-                              <div className="grid grid-cols-4 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                                  <button onClick={() => handleStyleChange('minimal')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'minimal' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>簡約</button>
-                                  <button onClick={() => handleStyleChange('borderless')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'borderless' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>區塊</button>
-                                  <button onClick={() => handleStyleChange('wireframe')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'wireframe' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>線框</button>
-                                  <button onClick={() => handleStyleChange('custom')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'custom' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>自訂</button>
-                              </div>
-                          </SettingsSection>
-                        </SettingsCard>}
-                        <SettingsCard>
-                          <SettingsSection title="顏色">
-                            <div className="grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-3">
-                                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">背景</span>
-                                <ColorSelectorRow presets={PRESET_COLORS.bg} value={bgColor} onChange={(c) => updateSetting('bgColor', c)} />
-
-                                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">主要文字</span>
-                                <ColorSelectorRow presets={PRESET_COLORS.text} value={textColor} onChange={(c) => updateSetting('textColor', c)} />
-                                
-                                {(pngStyle === 'wireframe' || pngStyle === 'custom' || exportViewMode === 'list') && (
-                                    <>
-                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">邊框</span>
-                                        <ColorSelectorRow presets={PRESET_COLORS.border} value={borderColor} onChange={(c) => updateSetting('borderColor', c)} />
-                                    </>
-                                )}
-
-                                {(pngStyle === 'borderless' || pngStyle === 'custom') && (
-                                    <>
-                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">區塊</span>
-                                        <ColorSelectorRow presets={PRESET_COLORS.block} value={blockColor} onChange={(c) => updateSetting('blockColor', c)} />
-                                    </>
-                                )}
+                          <SettingsSection title="顯示範圍">
+                            <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                <ViewModeButton mode="month" label="完整月曆"/>
+                                <ViewModeButton mode="remaining" label="剩餘月份"/>
+                                <ViewModeButton mode="list" label="清單模式"/>
                             </div>
-                            
-                            <div className="pt-4 mt-4 border-t border-gray-200/60 dark:border-gray-700/60">
-                                <div className="grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-3">
-                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">休假文字</span>
-                                    <ColorSelectorRow presets={PRESET_COLORS.status} value={dayOffColor} onChange={(c) => updateSetting('dayOffColor', c)} />
-                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">公休文字</span>
-                                    <ColorSelectorRow presets={PRESET_COLORS.status} value={closedColor} onChange={(c) => updateSetting('closedColor', c)} />
-                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">約滿文字</span>
-                                    <ColorSelectorRow presets={PRESET_COLORS.status} value={fullyBookedColor} onChange={(c) => updateSetting('fullyBookedColor', c)} />
-                                </div>
-                            </div>
-                            
-                            {showBookedSlots && bookedStyle === 'strikethrough' && (
-                                <div className="pt-3 mt-3 border-t border-gray-200/60 dark:border-gray-700/60">
-                                    <div className="grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-3">
-                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">橫線顏色</span>
-                                        <ColorSelectorRow presets={PRESET_COLORS.strikethrough} value={strikethroughColor} onChange={(c) => updateSetting('strikethroughColor', c)} />
-                                        
-                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">橫線粗細</span>
-                                        <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                                            <button onClick={() => updateSetting('strikethroughThickness', 'thin')} className={`py-2 rounded-lg transition-all text-sm font-medium ${strikethroughThickness === 'thin' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>細</button>
-                                            <button onClick={() => updateSetting('strikethroughThickness', 'thick')} className={`py-2 rounded-lg transition-all text-sm font-medium ${strikethroughThickness === 'thick' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>粗</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
                           </SettingsSection>
                         </SettingsCard>
-                        {pngStyle === 'custom' && exportViewMode !== 'list' && (
+
+                      <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                          <TabButton tab="content" label="內容" />
+                          <TabButton tab="style" label="樣式" />
+                          <TabButton tab="layout" label="排版" />
+                      </div>
+
+                      <div className="space-y-4">
+                        {activeTab === 'content' && (
+                          <>
                             <SettingsCard>
-                                <SettingsSection title="效果">
-                                    <label htmlFor="png-show-shadow" className="flex items-center justify-between cursor-pointer">
-                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示陰影</span>
-                                        <div className="relative">
-                                            <input type="checkbox" id="png-show-shadow" className="sr-only peer" checked={showShadow} onChange={e => updateSetting('showShadow', e.target.checked)} />
-                                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                              <SettingsSection title="標題">
+                                <input type="text" value={localTitle} onChange={e => setLocalTitle(e.target.value)} className="w-full p-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100"/>
+                              </SettingsSection>
+                            </SettingsCard>
+                            <SettingsCard>
+                              <SettingsSection title="顯示項目">
+                                <label htmlFor="png-show-title" className="flex items-center justify-between cursor-pointer">
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示主標題</span>
+                                    <div className="relative">
+                                        <input type="checkbox" id="png-show-title" className="sr-only peer" checked={showTitle} onChange={e => updateSetting('showTitle', e.target.checked)} />
+                                        <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                                        <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                                    </div>
+                                </label>
+                                <label htmlFor="png-show-booked" className="flex items-center justify-between cursor-pointer">
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示已預約時段</span>
+                                    <div className="relative">
+                                        <input type="checkbox" id="png-show-booked" className="sr-only peer" checked={showBookedSlots} onChange={e => updateSetting('showBookedSlots', e.target.checked)} />
+                                        <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                                        <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                                    </div>
+                                </label>
+                                {showBookedSlots && (
+                                    <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
+                                        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
+                                        <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                            <button onClick={() => updateSetting('bookedStyle', 'strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>畫橫線</button>
+                                            <button onClick={() => updateSetting('bookedStyle', 'fade')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'fade' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>降低透明度</button>
                                         </div>
-                                    </label>
+                                    </div>
+                                )}
+                              </SettingsSection>
+                            </SettingsCard>
+                            <SettingsCard>
+                                <SettingsSection title="語言">
+                                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                        <button onClick={() => updateSetting('language', 'zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>中文</button>
+                                        <button onClick={() => updateSetting('language', 'en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>English</button>
+                                    </div>
                                 </SettingsSection>
                             </SettingsCard>
+                          </>
                         )}
-                        <SettingsCard>
-                            <SettingsSection title="字體">
-                                <div className="space-y-4">
-                                    {FONT_CATEGORIES.map(category => (
-                                        <div key={category.name}>
-                                            <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">{category.name}</h4>
-                                            <div className="relative">
-                                                <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                                                    {category.fonts.map(f => (
-                                                        <FontCard
-                                                            key={f.id}
-                                                            fontOption={f}
-                                                            isSelected={font === f.id}
-                                                            status={fontStatuses[f.id] || 'idle'}
-                                                            onSelect={() => handleFontSelect(f)}
-                                                            preloadFont={() => loadFont(f)}
-                                                        />
-                                                    ))}
-                                                </div>
+                        {activeTab === 'style' && (
+                          <>
+                            {exportViewMode !== 'list' && <SettingsCard>
+                              <SettingsSection title="整體風格">
+                                  <div className="grid grid-cols-4 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                      <button onClick={() => handleStyleChange('minimal')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'minimal' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>簡約</button>
+                                      <button onClick={() => handleStyleChange('borderless')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'borderless' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>區塊</button>
+                                      <button onClick={() => handleStyleChange('wireframe')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'wireframe' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>線框</button>
+                                      <button onClick={() => handleStyleChange('custom')} className={`py-2 rounded-lg transition-all text-sm font-medium ${pngStyle === 'custom' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>自訂</button>
+                                  </div>
+                              </SettingsSection>
+                            </SettingsCard>}
+                            <SettingsCard>
+                              <SettingsSection title="顏色">
+                                <div className="grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-3">
+                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">背景</span>
+                                    <ColorSelectorRow presets={PRESET_COLORS.bg} value={bgColor} onChange={(c) => updateSetting('bgColor', c)} />
+
+                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">主要文字</span>
+                                    <ColorSelectorRow presets={PRESET_COLORS.text} value={textColor} onChange={(c) => updateSetting('textColor', c)} />
+                                    
+                                    {(pngStyle === 'wireframe' || pngStyle === 'custom' || exportViewMode === 'list') && (
+                                        <>
+                                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">邊框</span>
+                                            <ColorSelectorRow presets={PRESET_COLORS.border} value={borderColor} onChange={(c) => updateSetting('borderColor', c)} />
+                                        </>
+                                    )}
+
+                                    {(pngStyle === 'borderless' || pngStyle === 'custom') && (
+                                        <>
+                                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">區塊</span>
+                                            <ColorSelectorRow presets={PRESET_COLORS.block} value={blockColor} onChange={(c) => updateSetting('blockColor', c)} />
+                                        </>
+                                    )}
+                                </div>
+                                
+                                <div className="pt-4 mt-4 border-t border-gray-200/60 dark:border-gray-700/60">
+                                    <div className="grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-3">
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">休假文字</span>
+                                        <ColorSelectorRow presets={PRESET_COLORS.status} value={dayOffColor} onChange={(c) => updateSetting('dayOffColor', c)} />
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">公休文字</span>
+                                        <ColorSelectorRow presets={PRESET_COLORS.status} value={closedColor} onChange={(c) => updateSetting('closedColor', c)} />
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">約滿文字</span>
+                                        <ColorSelectorRow presets={PRESET_COLORS.status} value={fullyBookedColor} onChange={(c) => updateSetting('fullyBookedColor', c)} />
+                                    </div>
+                                </div>
+                                
+                                {showBookedSlots && bookedStyle === 'strikethrough' && (
+                                    <div className="pt-3 mt-3 border-t border-gray-200/60 dark:border-gray-700/60">
+                                        <div className="grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-3">
+                                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">橫線顏色</span>
+                                            <ColorSelectorRow presets={PRESET_COLORS.strikethrough} value={strikethroughColor} onChange={(c) => updateSetting('strikethroughColor', c)} />
+                                            
+                                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">橫線粗細</span>
+                                            <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                                <button onClick={() => updateSetting('strikethroughThickness', 'thin')} className={`py-2 rounded-lg transition-all text-sm font-medium ${strikethroughThickness === 'thin' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>細</button>
+                                                <button onClick={() => updateSetting('strikethroughThickness', 'thick')} className={`py-2 rounded-lg transition-all text-sm font-medium ${strikethroughThickness === 'thick' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>粗</button>
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            </SettingsSection>
-                        </SettingsCard>
-                      </>
-                    )}
-                    {activeTab === 'layout' && (
-                      <>
-                        <SettingsCard>
-                           <SettingsSection title="主標題對齊">
-                                <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                                    <AlignButton align="left" label="靠左"/>
-                                    <AlignButton align="center" label="置中"/>
-                                    <AlignButton align="right" label="靠右"/>
-                                </div>
-                           </SettingsSection>
-                        </SettingsCard>
-                        <SettingsCard>
-                           <SettingsSection title="字體縮放">
-                                <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
-                                    <span>縮放比例</span>
-                                    <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{Math.round(fontScale * 100)}%</span>
-                                </label>
-                                <input type="range" min="0.5" max="5" step="0.1" value={fontScale} onChange={e => updateSetting('fontScale', Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
-                           </SettingsSection>
-                        </SettingsCard>
-                        {exportViewMode !== 'list' && <SettingsCard>
-                           <SettingsSection title="間距">
-                                <div>
-                                   <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
-                                       <span>水平間距</span>
-                                       <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{horizontalGap}px</span>
-                                   </label>
-                                   <input type="range" min="0" max="48" value={horizontalGap} onChange={e => updateSetting('horizontalGap', Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
-                                </div>
-                                <div>
-                                   <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
-                                       <span>垂直間距</span>
-                                       <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{verticalGap}px</span>
-                                   </label>
-                                   <input type="range" min="0" max="48" value={verticalGap} onChange={e => updateSetting('verticalGap', Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
-                                </div>
-                           </SettingsSection>
-                        </SettingsCard>}
-                      </>
-                    )}
-                  </div>
+                                    </div>
+                                )}
+                              </SettingsSection>
+                            </SettingsCard>
+                            {pngStyle === 'custom' && exportViewMode !== 'list' && (
+                                <SettingsCard>
+                                    <SettingsSection title="效果">
+                                        <label htmlFor="png-show-shadow" className="flex items-center justify-between cursor-pointer">
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示陰影</span>
+                                            <div className="relative">
+                                                <input type="checkbox" id="png-show-shadow" className="sr-only peer" checked={showShadow} onChange={e => updateSetting('showShadow', e.target.checked)} />
+                                                <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+                                                <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+                                            </div>
+                                        </label>
+                                    </SettingsSection>
+                                </SettingsCard>
+                            )}
+                            <SettingsCard>
+                                <SettingsSection title="字體">
+                                    <div className="space-y-4">
+                                        {FONT_CATEGORIES.map(category => (
+                                            <div key={category.name}>
+                                                <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">{category.name}</h4>
+                                                <div className="relative">
+                                                    <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                                                        {category.fonts.map(f => (
+                                                            <FontCard
+                                                                key={f.id}
+                                                                fontOption={f}
+                                                                isSelected={font === f.id}
+                                                                status={fontStatuses[f.id] || 'idle'}
+                                                                onSelect={() => handleFontSelect(f)}
+                                                                preloadFont={() => loadFont(f)}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </SettingsSection>
+                            </SettingsCard>
+                          </>
+                        )}
+                        {activeTab === 'layout' && (
+                          <>
+                            <SettingsCard>
+                               <SettingsSection title="主標題對齊">
+                                    <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                        <AlignButton align="left" label="靠左"/>
+                                        <AlignButton align="center" label="置中"/>
+                                        <AlignButton align="right" label="靠右"/>
+                                    </div>
+                               </SettingsSection>
+                            </SettingsCard>
+                            {exportViewMode !== 'list' && (
+                                <SettingsCard>
+                                    <SettingsSection title="時段排版">
+                                        <div className="grid grid-cols-2 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                                            <button onClick={() => updateSetting('slotLayout', 'vertical')} className={`py-2 rounded-lg transition-all text-sm font-medium ${slotLayout === 'vertical' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>垂直排列</button>
+                                            <button onClick={() => updateSetting('slotLayout', 'horizontal-wrap')} className={`py-2 rounded-lg transition-all text-sm font-medium ${slotLayout === 'horizontal-wrap' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>雙排</button>
+                                        </div>
+                                    </SettingsSection>
+                                </SettingsCard>
+                            )}
+                            <SettingsCard>
+                               <SettingsSection title="字體縮放">
+                                    <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
+                                        <span>縮放比例</span>
+                                        <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{Math.round(fontScale * 100)}%</span>
+                                    </label>
+                                    <input type="range" min="0.5" max="5" step="0.1" value={fontScale} onChange={e => updateSetting('fontScale', Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
+                               </SettingsSection>
+                            </SettingsCard>
+                            {exportViewMode !== 'list' && <SettingsCard>
+                               <SettingsSection title="間距">
+                                    <div>
+                                       <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
+                                           <span>水平間距</span>
+                                           <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{horizontalGap}px</span>
+                                       </label>
+                                       <input type="range" min="0" max="48" value={horizontalGap} onChange={e => updateSetting('horizontalGap', Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
+                                    </div>
+                                    <div>
+                                       <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">
+                                           <span>垂直間距</span>
+                                           <span className="text-base font-semibold text-gray-800 dark:text-gray-200">{verticalGap}px</span>
+                                       </label>
+                                       <input type="range" min="0" max="48" value={verticalGap} onChange={e => updateSetting('verticalGap', Number(e.target.value))} className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer focus:outline-none"/>
+                                    </div>
+                               </SettingsSection>
+                            </SettingsCard>}
+                          </>
+                        )}
+                      </div>
+                    </div>
                 </div>
-            </div>
+            ) : (
+                <div className="relative flex flex-col items-center justify-start pt-6">
+                    <div className="w-full flex flex-col items-center">
+                        <div className="relative w-16 h-16 flex items-center justify-center">
+                            <DownloadIcon
+                                className={`w-12 h-12 text-blue-600 transition-all duration-300 
+                                    ${isExporting || exportStage === 'generating_image' ? 'opacity-100 scale-100 animate-pulse' : 'opacity-0 scale-50'}`
+                                }
+                            />
+                            <CheckIcon
+                                className={`w-16 h-16 text-green-500 absolute transition-all duration-300 delay-200
+                                    ${exportStage === 'completed' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`
+                                }
+                            />
+                        </div>
+
+                        <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200 text-center">
+                            {exportStage === 'completed' ? '成功！圖片已準備就緒。' : loadingMessage}
+                        </p>
+                        
+                        {exportStage === 'completed' && (
+                            <>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 text-center max-w-xs">
+                                    提示：長按下方圖片即可儲存至您的裝置。
+                                </p>
+                                <button onClick={handleOpenInNewTab} className="absolute top-0 right-0 text-sm font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">
+                                    在新分頁開啟 ↗
+                                </button>
+                            </>
+                        )}
+
+                        {generatedPngDataUrl && exportStage === 'completed' && (
+                            <div className="w-full max-w-sm mt-6 flex flex-col items-center gap-4 pb-32">
+                                <img 
+                                    src={generatedPngDataUrl} 
+                                    alt="產生的班表圖片" 
+                                    className="w-full h-auto rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+                                />
+                            </div>
+                        )}
+                        {exportStage === 'generating_image' && (
+                            <AdSlot className="mt-6 w-full" allowedHostnames={['your.app', 'your-short.link', 'bit.ly']} />
+                        )}
+                    </div>
+                    {exportStage === 'completed' && (
+                        <div 
+                            className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 z-50 flex justify-center"
+                            style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }}
+                        >
+                            <AdSlot className="w-full" allowedHostnames={['your.app', 'your-short.link', 'bit.ly']} />
+                        </div>
+                    )}
+                </div>
+            )}
         </Modal>
     );
 };
@@ -1551,7 +1672,7 @@ interface PngExportContentProps extends PngSettingsState {
 }
 
 const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>(({
-    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign, dayOffColor, closedColor, fullyBookedColor
+    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign, dayOffColor, closedColor, fullyBookedColor, slotLayout
 }, ref) => {
     
     const monthNames = language === 'zh' ? MONTH_NAMES : MONTH_NAMES_EN;
@@ -1730,6 +1851,30 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                         (() => {
                                             const finalSlots = showBookedSlots ? dayData.slots : dayData.slots.filter(s => s.state === 'available');
                                             if (finalSlots.length === 0) return null;
+
+                                            if (slotLayout === 'horizontal-wrap') {
+                                                return (
+                                                    <div className="mt-1 text-center" style={{ lineHeight: '1.6' }}>
+                                                        {finalSlots.map((slot, index) => {
+                                                            const spanStyle: React.CSSProperties = { color: textColor, display: 'inline-block' };
+                                                            if (slot.state === 'booked') {
+                                                                if (bookedStyle === 'fade') { spanStyle.opacity = 0.3; }
+                                                                else if (bookedStyle === 'strikethrough') {
+                                                                    spanStyle.textDecoration = 'line-through';
+                                                                    spanStyle.textDecorationColor = strikethroughColor;
+                                                                    spanStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
+                                                                }
+                                                            }
+                                                            return (
+                                                                <React.Fragment key={slot.time}>
+                                                                    <span style={spanStyle}>{slot.time}</span>
+                                                                    {index < finalSlots.length - 1 && <span style={{ color: textColor, opacity: 0.8, margin: '0 0.2em' }}>／</span>}
+                                                                </React.Fragment>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )
+                                            }
                                             
                                             return (
                                                 <ul className="space-y-1 mt-1 text-center">
@@ -1771,6 +1916,44 @@ const LoginPrompt: React.FC<{ onLoginClick: () => void }> = ({ onLoginClick }) =
     </div>
 );
 
+const defaultPngSettings: PngSettingsState = {
+    exportViewMode: 'month',
+    pngStyle: 'minimal',
+    bgColor: 'transparent',
+    textColor: '#111827',
+    borderColor: 'transparent',
+    blockColor: 'transparent',
+    showShadow: false,
+    showTitle: true,
+    showBookedSlots: true,
+    bookedStyle: 'strikethrough',
+    strikethroughColor: '#EF4444',
+    strikethroughThickness: 'thin',
+    fontScale: 1,
+    font: FONT_OPTIONS[0].id,
+    language: 'zh',
+    horizontalGap: 8,
+    verticalGap: 8,
+    titleAlign: 'center',
+    dayOffColor: '#6B7280',
+    closedColor: '#6B7280',
+    fullyBookedColor: '#EF4444',
+    slotLayout: 'vertical',
+};
+
+const defaultTextExportSettings: TextExportSettingsState = {
+    layout: 'compact',
+    language: 'zh',
+    includeTitle: false,
+    includeYear: false,
+    showMonth: true,
+    showBooked: false,
+    showDayOfWeek: true,
+    showFullyBooked: false,
+    showDayOff: false,
+    bookedStyle: 'strikethrough',
+};
+
 
 const App: React.FC = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -1800,31 +1983,9 @@ const App: React.FC = () => {
         return () => observer.disconnect();
     }, []);
 
-    // Lifted state for PngExportModal settings persistence
-    const [pngSettings, setPngSettings] = useState<PngSettingsState>({
-        exportViewMode: 'month',
-        pngStyle: 'minimal',
-        bgColor: 'transparent',
-        textColor: '#111827',
-        borderColor: 'transparent',
-        blockColor: 'transparent',
-        showShadow: false,
-        showTitle: true,
-        showBookedSlots: true,
-        bookedStyle: 'strikethrough',
-        strikethroughColor: '#EF4444',
-        strikethroughThickness: 'thin',
-        fontScale: 1,
-        font: FONT_OPTIONS[0].id,
-        language: 'zh',
-        horizontalGap: 8,
-        verticalGap: 8,
-        titleAlign: 'center',
-        // UPDATED: Set defaults as requested
-        dayOffColor: '#6B7280', // Gray
-        closedColor: '#6B7280', // Gray
-        fullyBookedColor: '#EF4444', // Red
-    });
+    const [pngSettings, setPngSettings] = useState<PngSettingsState>(defaultPngSettings);
+    const [textExportSettings, setTextExportSettings] = useState<TextExportSettingsState>(defaultTextExportSettings);
+
 
     useEffect(() => {
         const isAnyModalOpen = isSlotEditorOpen || isPngExportOpen || isTextExportOpen || isAuthModalOpen;
@@ -1859,34 +2020,80 @@ const App: React.FC = () => {
                     if(data){
                         setScheduleData(data.schedule || {});
                         setTitle(data.title || "可預約時段");
+                        setTextExportSettings(prev => ({ ...prev, ...(data.textExportSettings || {}) }));
+                        setPngSettings(prev => ({ ...prev, ...(data.pngSettings || {}) }));
                     }
                 }
             }).catch((error: any) => console.error("Error loading data from Firestore:", error));
         } else {
             try {
-                const localData = localStorage.getItem('scheduleData');
-                if (localData) setScheduleData(JSON.parse(localData));
+                const localSchedule = localStorage.getItem('scheduleData');
+                if (localSchedule) setScheduleData(JSON.parse(localSchedule));
+
                 const localTitle = localStorage.getItem('scheduleTitle');
                 if (localTitle) setTitle(localTitle);
+                
+                const localTextSettings = localStorage.getItem('textExportSettings');
+                if (localTextSettings) setTextExportSettings(JSON.parse(localTextSettings));
+
+                const localPngSettings = localStorage.getItem('pngSettings');
+                if (localPngSettings) setPngSettings(JSON.parse(localPngSettings));
             } catch (error) {
                 console.error("Failed to parse local storage data:", error);
-                localStorage.removeItem('scheduleData');
-                localStorage.removeItem('scheduleTitle');
+                localStorage.clear(); // Clear all potentially corrupted data
             }
         }
     }, [docRef]);
     
-    const saveData = (newSchedule: ScheduleData, newTitle: string = title) => {
-        setScheduleData(newSchedule);
-        setTitle(newTitle);
+    // This is now a generic state update handler
+    const updateAndSaveState = useCallback(<K extends keyof any>(updates: Partial<{
+        scheduleData: ScheduleData;
+        title: string;
+        textExportSettings: TextExportSettingsState;
+        pngSettings: PngSettingsState;
+    }>) => {
+        
+        const newState = {
+            scheduleData: updates.scheduleData ?? scheduleData,
+            title: updates.title ?? title,
+            textExportSettings: updates.textExportSettings ?? textExportSettings,
+            pngSettings: updates.pngSettings ?? pngSettings,
+        };
+        
+        // Update React state
+        if(updates.scheduleData) setScheduleData(updates.scheduleData);
+        if(updates.title) setTitle(updates.title);
+        if(updates.textExportSettings) setTextExportSettings(updates.textExportSettings);
+        if(updates.pngSettings) setPngSettings(updates.pngSettings);
+
+        // Persist data
         if (docRef) {
-            docRef.set({ schedule: newSchedule, title: newTitle }, { merge: true })
+            docRef.set(newState, { merge: true })
                 .catch((error: any) => console.error("Error saving data to Firestore:", error));
         } else {
-            localStorage.setItem('scheduleData', JSON.stringify(newSchedule));
-            localStorage.setItem('scheduleTitle', newTitle);
+            if(updates.scheduleData) localStorage.setItem('scheduleData', JSON.stringify(updates.scheduleData));
+            if(updates.title) localStorage.setItem('scheduleTitle', updates.title);
+            if(updates.textExportSettings) localStorage.setItem('textExportSettings', JSON.stringify(updates.textExportSettings));
+            if(updates.pngSettings) localStorage.setItem('pngSettings', JSON.stringify(updates.pngSettings));
         }
-    };
+    }, [docRef, scheduleData, title, textExportSettings, pngSettings]);
+
+    useEffect(() => {
+        // Debounced save for text settings
+        const handler = setTimeout(() => {
+             updateAndSaveState({ textExportSettings });
+        }, 1000);
+        return () => clearTimeout(handler);
+    }, [textExportSettings, updateAndSaveState]);
+
+    useEffect(() => {
+        // Debounced save for png settings
+        const handler = setTimeout(() => {
+            updateAndSaveState({ pngSettings });
+        }, 1000);
+        return () => clearTimeout(handler);
+    }, [pngSettings, updateAndSaveState]);
+
 
     const calendarDays = useMemo<CalendarDay[]>(() => {
         const days: CalendarDay[] = [];
@@ -1949,7 +2156,7 @@ const App: React.FC = () => {
         });
       }
       
-      saveData(newSchedule);
+      updateAndSaveState({ scheduleData: newSchedule });
     };
 
     const handleToggleSlotState = (date: Date, time: string) => {
@@ -1964,11 +2171,11 @@ const App: React.FC = () => {
             }
             return slot;
         });
-        saveData({ ...scheduleData, [dateKey]: { ...dayData, slots: newSlots } });
+        updateAndSaveState({ scheduleData: { ...scheduleData, [dateKey]: { ...dayData, slots: newSlots } } });
     };
 
     const handleTitleChange = (newTitle: string) => {
-        saveData(scheduleData, newTitle);
+        updateAndSaveState({ title: newTitle });
     };
     
     const loginPromptContent = isFirebaseConfigured && !user ? <LoginPrompt onLoginClick={() => setIsAuthModalOpen(true)} /> : null;
@@ -2110,6 +2317,8 @@ const App: React.FC = () => {
                 title={title}
                 currentDate={currentDate}
                 loginPromptContent={loginPromptContent}
+                textExportSettings={textExportSettings}
+                setTextExportSettings={setTextExportSettings}
             />
 
             {isFirebaseConfigured && <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} /> }
