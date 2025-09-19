@@ -4,6 +4,7 @@ import { DownloadIcon, SpinnerIcon } from './icons';
 import Modal from './Modal';
 import PngExportContent from './PngExportContent';
 import { embedFontForExport } from '../fontUtils';
+import { getPrimaryFamily } from '../fonts';
 import { FONT_OPTIONS, ExportStage, PngSettingsTab } from './PngExportModal.helpers';
 import { useFontLoader, usePreviewScaling } from './PngExportModal.hooks';
 import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
@@ -104,54 +105,61 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert('匯出工具尚未準備好，請稍後再試。');
             return;
         }
-    
+
         setExportStage('generating_image');
         
+        // Create a temporary style element for pre-loading that we can clean up later.
+        const tempStyle = document.createElement('style');
+        
         try {
-            // Ensure all styles from JIT are applied
+            // --- Stage 1: Proactive Resource Injection & Authoritative Cache Priming ---
+            setLoadingMessage('正在準備字體資源...');
+            // Wait for the next animation frame to ensure any pending UI updates (like from Tailwind JIT) are complete.
             await new Promise(resolve => requestAnimationFrame(resolve));
-    
+
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
             
-            setLoadingMessage('正在準備字體...');
+            // Get the self-contained @font-face CSS with Base64 data.
             const fontEmbedCSS = await embedFontForExport(selectedFont);
-            const baseOptions = {
+            
+            // Inject the font definition directly into the main document's head.
+            tempStyle.textContent = fontEmbedCSS;
+            document.head.appendChild(tempStyle);
+
+            // Use the browser's most reliable API to force it to load the font from the injected Base64 data.
+            // This is the crucial "priming" step that populates the browser's internal font cache.
+            const primaryFontFamily = getPrimaryFamily(selectedFont.id);
+            setLoadingMessage('正在預載字體...');
+            await document.fonts.load(`1em "${primaryFontFamily}"`);
+            
+            // Give the browser one more frame as an insurance policy for rendering pipelines to catch up.
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            // --- Stage 2: Production Render with Embedded Resources ---
+            setLoadingMessage('正在生成圖片...');
+            const dataUrl = await htmlToImage.toPng(exportNode, {
+                // We STILL pass the font CSS here. The library's sandbox needs its own copy,
+                // but now it will be an instantaneous cache hit because of the priming step above.
                 fontEmbedCSS: fontEmbedCSS,
                 backgroundColor: propsForContent.bgColor === 'transparent' ? null : propsForContent.bgColor,
-            };
-    
-            // --- Stage 1: The Priming Render ---
-            // This silent, low-quality render forces the browser to process and cache all resources.
-            // It mimics the "first failed attempt" that makes the second attempt successful.
-            try {
-                setLoadingMessage('正在準備渲染引擎...');
-                await htmlToImage.toPng(exportNode, {
-                    ...baseOptions,
-                    pixelRatio: 0.1, // Low quality is faster and sufficient for priming.
-                });
-            } catch (e) {
-                // We expect this might fail on some platforms, and that's okay.
-                // Its purpose is to warm up the cache, not to produce a valid image.
-                console.warn('Priming render failed as expected, proceeding with main render.', e);
-            }
-    
-            // --- Stage 2: The Production Render ---
-            // This is the "second try" that now finds a fully warmed-up rendering engine.
-            setLoadingMessage('正在生成最終圖片...');
-            const dataUrl = await htmlToImage.toPng(exportNode, {
-                ...baseOptions,
                 quality: 1.0,
                 pixelRatio: 2,
             });
             
             setGeneratedPngDataUrl(dataUrl);
             setExportStage('completed');
-    
+
         } catch (error) {
             console.error('Oops, something went wrong during PNG export!', error);
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
+        } finally {
+            // --- Cleanup ---
+            // ALWAYS remove the temporary style element, whether the export succeeded or failed.
+            if (document.head.contains(tempStyle)) {
+                document.head.removeChild(tempStyle);
+            }
         }
     }, [pngSettings.font, propsForContent.bgColor]);
 
