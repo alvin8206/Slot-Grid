@@ -5,13 +5,41 @@ import { DownloadIcon, CheckIcon, SpinnerIcon, RainbowIcon } from './icons';
 import Modal from './Modal';
 import PngExportContent from './PngExportContent';
 import { AdSlot } from './AdSlot';
-import { getPrimaryFamily } from '../fonts';
 import { embedFontForExport } from '../fontUtils';
 
 // This declaration is necessary because html-to-image is loaded from a CDN.
 declare const htmlToImage: {
   toPng: <T extends HTMLElement>(node: T, options?: object) => Promise<string>;
 };
+
+// NEW: Color utility functions
+const parseColor = (colorStr: string): { hex: string; alpha: number } => {
+    if (!colorStr || typeof colorStr !== 'string') return { hex: '#000000', alpha: 1 };
+    if (colorStr === 'transparent') return { hex: '#000000', alpha: 0 };
+    if (colorStr.startsWith('#')) {
+        return { hex: colorStr.toLowerCase(), alpha: 1 };
+    }
+    if (colorStr.startsWith('rgb')) {
+        const parts = colorStr.match(/[\d.]+/g);
+        if (!parts || parts.length < 3) return { hex: '#000000', alpha: 1 };
+        const [r, g, b] = parts.map(Number);
+        const toHex = (c: number) => ('0' + c.toString(16)).slice(-2);
+        const hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+        const alpha = parts.length > 3 ? parseFloat(parts[3]) : 1;
+        return { hex, alpha };
+    }
+    return { hex: '#000000', alpha: 1 }; // Fallback for unknown formats
+};
+
+const hexToRgb = (hex: string): { r: number, g: number, b: number } | null => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : null;
+};
+
 
 const FONT_CATEGORIES = [
     {
@@ -105,20 +133,122 @@ interface ColorPickerInputProps {
 }
 
 const ColorPickerInput: React.FC<ColorPickerInputProps> = ({ value, onChange, isCustom }) => {
-  return (
-    <div className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 shadow-sm ${isCustom ? 'ring-2 ring-offset-2 ring-blue-500' : 'ring-1 ring-inset ring-gray-300 dark:ring-gray-600'}`}>
-        <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-            <RainbowIcon />
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const popoverRef = useRef<HTMLDivElement>(null);
+    const [popoverPosition, setPopoverPosition] = useState<'top' | 'bottom'>('top');
+    const { hex, alpha } = useMemo(() => parseColor(value), [value]);
+
+    useLayoutEffect(() => {
+        if (isPickerOpen && popoverRef.current) {
+            const rect = popoverRef.current.getBoundingClientRect();
+            // Check if it's going off the top of the viewport
+            if (rect.top < 10) { // 10px buffer
+                setPopoverPosition('bottom');
+            } else {
+                setPopoverPosition('top');
+            }
+        } else if (!isPickerOpen) {
+            // Reset when closed so it tries 'top' first next time
+            setPopoverPosition('top');
+        }
+    }, [isPickerOpen]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsPickerOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleColorChange = (newHex: string) => {
+        const rgb = hexToRgb(newHex);
+        if (!rgb) return;
+        
+        // When user picks a new color, if original was transparent, make it fully opaque.
+        const newAlpha = (alpha === 0 && value === 'transparent') ? 1 : alpha;
+        onChange(`rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${newAlpha})`);
+    };
+
+    const handleAlphaChange = (newAlpha: number) => {
+        const rgb = hexToRgb(hex);
+        if (!rgb) return;
+        
+        if (newAlpha === 0) {
+            onChange('transparent');
+        } else {
+            onChange(`rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${newAlpha})`);
+        }
+    };
+
+    const rgb = hexToRgb(hex);
+    const previewColor = rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})` : 'transparent';
+    const isTransparent = alpha === 0;
+
+    return (
+        <div ref={containerRef} className="relative">
+            <button
+                type="button"
+                onClick={() => setIsPickerOpen(prev => !prev)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 shadow-sm ${isCustom ? 'ring-2 ring-offset-2 ring-blue-500' : 'ring-1 ring-inset ring-gray-300 dark:ring-gray-600'}`}
+                style={{
+                  backgroundColor: isTransparent ? 'transparent' : previewColor,
+                  backgroundImage: isTransparent ? `url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="%23d1d5db" d="M0 0h8v8H0zM8 8h8v8H8z" fill-opacity="0.2"/></svg>')` : 'none',
+                }}
+            >
+                <div className="flex items-center justify-center" aria-hidden="true">
+                    <RainbowIcon />
+                </div>
+            </button>
+
+            {isPickerOpen && (
+                <div
+                    ref={popoverRef}
+                    className={`absolute left-1/2 -translate-x-1/2 z-10 w-60 bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-4 border border-gray-200 dark:border-gray-700 space-y-4
+                        ${popoverPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}`
+                    }
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="relative w-10 h-10 rounded-md overflow-hidden border border-gray-300 dark:border-gray-500 shrink-0">
+                            <div className="absolute inset-0 bg-white" style={{ backgroundImage: `url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="%23d1d5db" d="M0 0h8v8H0zM8 8h8v8H8z" fill-opacity="0.2"/></svg>')`}}></div>
+                            <div className="absolute inset-0" style={{ backgroundColor: previewColor }}></div>
+                            <input
+                                type="color"
+                                value={hex}
+                                onChange={(e) => handleColorChange(e.target.value)}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                        </div>
+                        <div className="flex-grow">
+                             <label htmlFor="color-hex-value" className="text-xs font-medium text-gray-500 dark:text-gray-400">顏色</label>
+                             <div id="color-hex-value" className="text-sm font-semibold text-gray-800 dark:text-gray-100 uppercase tracking-wider">{hex}</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div className="flex justify-between items-baseline mb-1">
+                          <label htmlFor="alpha-slider" className="text-xs font-medium text-gray-500 dark:text-gray-400">透明度</label>
+                          <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{Math.round(alpha * 100)}%</span>
+                        </div>
+                        <input
+                            id="alpha-slider"
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={alpha}
+                            onChange={(e) => handleAlphaChange(parseFloat(e.target.value))}
+                            className="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                        />
+                    </div>
+                </div>
+            )}
         </div>
-        <input
-            type="color"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        />
-    </div>
-  );
+    );
 };
+
 
 const ColorSelectorRow: React.FC<{ value: string; onChange: (color: string) => void; presets: string[]; }> = ({ value, onChange, presets }) => {
     const isCustom = !presets.includes(value);
@@ -256,48 +386,54 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         const wrapperNode = scaleWrapperRef.current;
         const exportNode = exportRef.current;
 
-        if (!isOpen || !containerNode || !wrapperNode || !exportNode || selectedFontStatus !== 'loaded') {
+        if (!isOpen || !containerNode || !wrapperNode || !exportNode) {
             return;
         }
 
-        let animationFrameId: number | null = null;
+        if (selectedFontStatus !== 'loaded') {
+            return;
+        }
+
+        let rafId1: number | null = null;
+        let rafId2: number | null = null;
 
         const updatePreviewLayout = () => {
-            animationFrameId = requestAnimationFrame(() => {
-                if (!containerNode || !wrapperNode || !exportNode) {
-                    return;
-                }
-                const exportWidth = 800;
-                const containerWidth = containerNode.offsetWidth;
+            if (!containerNode || !wrapperNode || !exportNode) return;
+            
+            const exportWidth = 800;
+            const containerWidth = containerNode.offsetWidth;
 
-                if (exportWidth > 0 && containerWidth > 0) {
-                    const scale = containerWidth / exportWidth;
-                    wrapperNode.style.transform = `scale(${scale})`;
-                    
-                    const exportHeight = exportNode.offsetHeight;
-                    const scaledHeight = exportHeight * scale;
-                    wrapperNode.style.height = `${scaledHeight}px`;
-                }
-            });
+            if (exportWidth > 0 && containerWidth > 0) {
+                const scale = containerWidth / exportWidth;
+                wrapperNode.style.transform = `scale(${scale})`;
+                
+                const exportHeight = exportNode.offsetHeight;
+                const scaledHeight = exportHeight * scale;
+                wrapperNode.style.height = `${scaledHeight}px`;
+            }
         };
 
-        updatePreviewLayout();
+        // FIX: Use a double requestAnimationFrame to ensure the browser has painted
+        // with the new font before we measure the element's height. This prevents
+        // measuring based on a fallback font.
+        rafId1 = requestAnimationFrame(() => {
+            rafId2 = requestAnimationFrame(updatePreviewLayout);
+        });
 
         const resizeObserver = new ResizeObserver(updatePreviewLayout);
         resizeObserver.observe(containerNode);
         resizeObserver.observe(exportNode);
 
         return () => {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-            }
+            if (rafId1) cancelAnimationFrame(rafId1);
+            if (rafId2) cancelAnimationFrame(rafId2);
             resizeObserver.disconnect();
             if (wrapperNode) {
                  wrapperNode.style.height = '';
                  wrapperNode.style.transform = '';
             }
         };
-    }, [isOpen, propsForContent, selectedFontStatus]);
+    }, [isOpen, selectedFontStatus, propsForContent]); // Re-run when font is loaded or content changes
     
     const loadFont = useCallback((fontOption: typeof FONT_OPTIONS[0]) => {
       return new Promise<void>((resolve, reject) => {
@@ -373,33 +509,34 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             
             let styleEl: HTMLStyleElement | null = null;
             try {
-                // --- Start of The Ultimate "Forced Repaint" Strategy ---
-                // 1. Prepare Font CSS
-                const fontEmbedCSS = await embedFontForExport(selectedFont);
-                const primaryFontFamily = getPrimaryFamily(selectedFont.id);
+                // --- Start of The Ultimate "Forced Repaint" Strategy for iOS Safari ---
+                // This sequence combines multiple techniques to ensure custom fonts are rendered before screenshotting.
 
-                // 2. Inject Style
+                // 1. Prepare Font CSS: Embeds font files as Base64 for self-containment.
+                const fontEmbedCSS = await embedFontForExport(selectedFont);
+                
+                // 2. Inject Style: Makes the browser aware of the @font-face rules.
                 styleEl = document.createElement('style');
                 styleEl.textContent = fontEmbedCSS;
                 document.head.appendChild(styleEl);
 
-                // 3. Wait for Font Load API
-                await document.fonts.load(`1em "${primaryFontFamily}"`);
+                // 3. Wait for All Fonts to be Ready: `document.fonts.ready` is a robust way to wait for
+                // font loading and layout operations to complete for the entire document, as suggested.
+                await document.fonts.ready;
                 
-                // 4. Force a reflow on the target element to apply the font
-                // Reading a layout property like offsetHeight forces the browser to compute the layout
+                // 4. Force Reflow: Reading a layout property forces the browser to compute layout with the new font.
                 exportNode.offsetHeight;
 
-                // 5. Wait for two animation frames to ensure painting has occurred
+                // 5. Double RAF Buffer: Waits for two repaint cycles, which is particularly effective on Safari.
                 await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-                // 6. Add a final small insurance delay for good measure on iOS
+                // 6. Insurance Delay: A final small delay helps on slower devices.
                 await new Promise(resolve => setTimeout(resolve, 300));
                 // --- End of Strategy ---
 
                 setLoadingMessage('正在繪製圖片...');
                 
-                // 7. Capture the Image, still passing fontEmbedCSS for maximum reliability
+                // 7. Capture Image: Pass fontEmbedCSS again for maximum reliability.
                 const dataUrl = await htmlToImage.toPng(exportNode, {
                     quality: 1,
                     pixelRatio: 2,
@@ -533,7 +670,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                         <div className="space-y-2">
                             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">預覽</h3>
                             <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden max-h-[25vh] lg:max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                                <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out, height 0.2s ease-out' }}>
+                                <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out, height 0.2s ease-out', visibility: selectedFontStatus === 'loaded' ? 'visible' : 'hidden' }}>
                                     <PngExportContent {...propsForContent} />
                                 </div>
                             </div>
