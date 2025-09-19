@@ -537,7 +537,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
   return (
     <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer}>
         <div className="mb-4">
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">設定整日狀態</h2>
+            <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">設定整日狀態</h3>
             <div className="grid grid-cols-3 gap-2">
                 <StatusButton status="dayOff" label="設為休假" />
                 <StatusButton status="closed" label="設為公休" />
@@ -573,7 +573,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
             {copiedSlots && isMultiPasteExpanded && (
                 <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-semibold text-blue-800 dark:text-blue-300">貼上至多個日期</h2>
+                        <h3 className="font-semibold text-blue-800 dark:text-blue-300">貼上至多個日期</h3>
                         <button 
                             onClick={handlePasteToAll}
                             className="text-xs bg-blue-200 text-blue-800 font-semibold px-2 py-1 rounded-md hover:bg-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 transition-colors"
@@ -605,7 +605,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
             )}
 
             <div>
-                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">已選時段 ({currentSlotsArray.length})</h2>
+                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">已選時段 ({currentSlotsArray.length})</h3>
                 <div className="bg-white dark:bg-gray-800 p-3 rounded-lg min-h-[80px] border dark:border-gray-700">
                     {currentSlotsArray.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
@@ -623,7 +623,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
             </div>
             
             <div>
-                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">快速新增</h2>
+                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">快速新增</h3>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {PREDEFINED_SLOTS.map(slot => (
                         <button key={slot} onClick={() => handleQuickAdd(slot)} disabled={localSlots.has(slot)} className="p-2 rounded-lg text-sm text-center transition-colors font-medium border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600 disabled:bg-gray-200 dark:disabled:bg-gray-800/50 disabled:text-gray-400 disabled:cursor-not-allowed">{slot}</button>
@@ -632,7 +632,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
             </div>
 
             <div>
-                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">自訂時段</h2>
+                <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">自訂時段</h3>
                 <div className="flex gap-2">
                     <input 
                         type="text"
@@ -865,7 +865,7 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                         </div>
                     </label>
                     <label htmlFor="include-year" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">包含年份</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示年份</span>
                         <div className="relative">
                             <input type="checkbox" id="include-year" className="sr-only peer" checked={includeYear} onChange={e => updateSetting('includeYear', e.target.checked)} />
                             <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
@@ -1224,7 +1224,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         setExportStage('generating_image');
         setLoadingMessage('正在準備字體...');
 
-        const MIN_EXPORT_DURATION = 3500;
+        const MIN_EXPORT_DURATION = 4500;
         const delayPromise = new Promise(resolve => setTimeout(resolve, MIN_EXPORT_DURATION));
 
         const generationTask = async () => {
@@ -1246,7 +1246,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 await document.fonts.load(`16px "${fontFamilyToLoad}"`);
                 await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-                setLoadingMessage('正在繪製高解析度圖片...');
+                setLoadingMessage('正在繪製圖片...');
                 const dataUrl = await htmlToImage.toPng(exportNode, {
                     quality: 1,
                     pixelRatio: 2,
