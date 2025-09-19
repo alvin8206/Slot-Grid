@@ -1,4 +1,3 @@
-// components/PngExportModal.tsx
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode } from '../types';
 import { DownloadIcon, SpinnerIcon } from './icons';
@@ -107,38 +106,48 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
     
         setExportStage('generating_image');
-        setLoadingMessage('同步渲染管線...');
-    
-        // Wait for the next browser paint cycle to ensure all styles (e.g., from Tailwind JIT) are applied.
-        await new Promise(resolve => requestAnimationFrame(resolve));
         
-        // A short, fixed delay for better UX and to let things settle.
-        const delayPromise = new Promise(resolve => setTimeout(resolve, 500));
+        try {
+            // Ensure all styles from JIT are applied
+            await new Promise(resolve => requestAnimationFrame(resolve));
     
-        const generationTask = async () => {
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
             
-            setLoadingMessage('正在內嵌字體...');
+            setLoadingMessage('正在準備字體...');
             const fontEmbedCSS = await embedFontForExport(selectedFont);
-            
-            setLoadingMessage('正在生成圖片...');
+            const baseOptions = {
+                fontEmbedCSS: fontEmbedCSS,
+                backgroundColor: propsForContent.bgColor === 'transparent' ? null : propsForContent.bgColor,
+            };
+    
+            // --- Stage 1: The Priming Render ---
+            // This silent, low-quality render forces the browser to process and cache all resources.
+            // It mimics the "first failed attempt" that makes the second attempt successful.
+            try {
+                setLoadingMessage('正在準備渲染引擎...');
+                await htmlToImage.toPng(exportNode, {
+                    ...baseOptions,
+                    pixelRatio: 0.1, // Low quality is faster and sufficient for priming.
+                });
+            } catch (e) {
+                // We expect this might fail on some platforms, and that's okay.
+                // Its purpose is to warm up the cache, not to produce a valid image.
+                console.warn('Priming render failed as expected, proceeding with main render.', e);
+            }
+    
+            // --- Stage 2: The Production Render ---
+            // This is the "second try" that now finds a fully warmed-up rendering engine.
+            setLoadingMessage('正在生成最終圖片...');
             const dataUrl = await htmlToImage.toPng(exportNode, {
+                ...baseOptions,
                 quality: 1.0,
                 pixelRatio: 2,
-                // Provide the pre-processed, self-contained font CSS.
-                // This is the most critical step for reliability.
-                fontEmbedCSS: fontEmbedCSS,
-                // Pass the background color; use null for transparency.
-                backgroundColor: propsForContent.bgColor === 'transparent' ? null : propsForContent.bgColor,
             });
             
             setGeneratedPngDataUrl(dataUrl);
-        };
-    
-        try {
-            await Promise.all([generationTask(), delayPromise]);
             setExportStage('completed');
+    
         } catch (error) {
             console.error('Oops, something went wrong during PNG export!', error);
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
