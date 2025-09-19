@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode, CustomFont } from '../types';
 import { DownloadIcon, SpinnerIcon, TrashIcon } from './icons';
@@ -157,6 +156,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
 
         setExportStage('generating_image');
         const styleElement = document.createElement('style');
+        
+        // FIX: Temporarily remove external font links to prevent CORS errors in the console.
+        const fontLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[href*="fonts.googleapis.com"]'));
+        const head = document.head;
+        fontLinks.forEach(link => head.removeChild(link));
 
         try {
             // --- COMMON SETUP: Prepare font resources ---
@@ -176,25 +180,16 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             styleElement.textContent = fontEmbedCSS;
             exportNode.appendChild(styleElement);
             await new Promise(resolve => requestAnimationFrame(resolve));
-            
-            const filter = (node: HTMLElement) => {
-                if (node.tagName === 'LINK' && (node as HTMLLinkElement).href?.includes('fonts.googleapis.com')) {
-                    return false;
-                }
-                return true;
-            };
 
             // --- STAGE 1: THE PRIMING RENDER ---
             setLoadingMessage('正在準備引擎...');
             try {
                 await htmlToImage.toPng(exportNode, {
-                    pixelRatio: 0.1, // Low quality for speed
-                    quality: 0.1,    // Low quality for speed
-                    filter: filter,
+                    pixelRatio: 0.01,
+                    quality: 0.01,
                 });
             } catch (primingError) {
                 console.log('Priming render failed as expected, which is normal on some devices. Continuing...', primingError);
-                // This error is expected and intentionally ignored.
             }
 
             // --- STAGE 2: THE PRODUCTION RENDER ---
@@ -203,7 +198,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 backgroundColor: propsForContent.bgColor === 'transparent' ? null : propsForContent.bgColor,
                 quality: 1.0,
                 pixelRatio: 2,
-                filter: filter,
             });
             
             setGeneratedPngDataUrl(dataUrl);
@@ -218,6 +212,8 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             if (exportNode.contains(styleElement)) {
                 exportNode.removeChild(styleElement);
             }
+            // Restore the removed font links to ensure the main UI is not broken.
+            fontLinks.forEach(link => head.appendChild(link));
         }
     }, [pngSettings.font, customFonts, propsForContent.bgColor]);
 
