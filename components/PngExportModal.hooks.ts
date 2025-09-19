@@ -1,57 +1,75 @@
 // components/PngExportModal.hooks.ts
 import { useState, useCallback, useLayoutEffect, useRef } from 'react';
 import { FontOption, FontStatus } from './PngExportModal.helpers';
+import type { CustomFont } from '../types';
 import { getPrimaryFamily } from '../fonts';
 
 /**
  * Hook to manage loading and status tracking of web fonts.
- * This version uses the `document.fonts.load()` API for deterministic loading,
- * which is crucial for avoiding race conditions with layout calculations.
+ * This version supports both Google Fonts and custom uploaded fonts.
  */
-export const useFontLoader = () => {
+export const useFontLoader = (customFonts: CustomFont[]) => {
     const [fontStatuses, setFontStatuses] = useState<Record<string, FontStatus>>({});
-    // Use a ref to track stylesheets that have been added to the DOM to avoid duplication.
     const addedLinks = useRef(new Set<string>());
+    const addedCustomStyles = useRef(new Set<string>());
 
     const loadFont = useCallback(async (fontOption: FontOption): Promise<void> => {
         const { id, urlValue, name } = fontOption;
 
-        // If font is already loaded or is currently loading, don't do anything.
         if (fontStatuses[id] === 'loaded' || fontStatuses[id] === 'loading') {
             return;
         }
 
+        const customFont = customFonts.find(cf => cf.name === id);
+
         try {
             setFontStatuses(prev => ({ ...prev, [id]: 'loading' }));
+            
+            let primaryFontFamily = getPrimaryFamily(id);
 
             // Step 1: Ensure the font stylesheet is in the document.
-            if (!addedLinks.current.has(id)) {
-                await new Promise<void>((resolve, reject) => {
-                    const link = document.createElement('link');
-                    link.rel = 'stylesheet';
-                    link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap`;
-                    link.onload = () => resolve();
-                    link.onerror = (e) => {
-                        console.error(`Font stylesheet failed to load for: ${name}`, e);
-                        reject(new Error(`Stylesheet load error for ${name}`));
-                    };
-                    document.head.appendChild(link);
-                });
-                addedLinks.current.add(id);
+            if (customFont) {
+                // Handle custom uploaded font
+                if (!addedCustomStyles.current.has(id)) {
+                    const style = document.createElement('style');
+                    style.id = `font-style-${id}`;
+                    style.textContent = `
+                        @font-face {
+                            font-family: "${primaryFontFamily}";
+                            src: url(${customFont.data});
+                        }
+                    `;
+                    document.head.appendChild(style);
+                    addedCustomStyles.current.add(id);
+                }
+            } else {
+                // Handle Google Font
+                if (!addedLinks.current.has(id)) {
+                    await new Promise<void>((resolve, reject) => {
+                        const link = document.createElement('link');
+                        link.rel = 'stylesheet';
+                        link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap`;
+                        link.onload = () => resolve();
+                        link.onerror = (e) => {
+                            console.error(`Font stylesheet failed to load for: ${name}`, e);
+                            reject(new Error(`Stylesheet load error for ${name}`));
+                        };
+                        document.head.appendChild(link);
+                    });
+                    addedLinks.current.add(id);
+                }
             }
-
+            
             // Step 2: Use the deterministic `document.fonts.load()` API.
-            // This is the key to ensuring the font is actually ready for rendering.
-            const primaryFontFamily = getPrimaryFamily(id);
             await document.fonts.load(`1em "${primaryFontFamily}"`);
 
             setFontStatuses(prev => ({ ...prev, [id]: 'loaded' }));
         } catch (error) {
             console.error(`Failed to load font "${name}":`, error);
-            setFontStatuses(prev => ({ ...prev, [id]: 'idle' })); // Reset status on failure
-            throw error; // Re-throw to allow callers to handle it.
+            setFontStatuses(prev => ({ ...prev, [id]: 'idle' }));
+            throw error;
         }
-    }, [fontStatuses]);
+    }, [fontStatuses, customFonts]);
 
     return { fontStatuses, loadFont };
 };

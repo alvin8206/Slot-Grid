@@ -1,7 +1,7 @@
 // components/PngExportModal.ui.tsx
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { PngSettingsState, PngStyle, PngExportViewMode, TitleAlign } from '../types';
-import { DownloadIcon, CheckIcon, SpinnerIcon, RainbowIcon } from './icons';
+import type { PngSettingsState, PngStyle, PngExportViewMode, TitleAlign, CustomFont } from '../types';
+import { DownloadIcon, CheckIcon, SpinnerIcon, RainbowIcon, TrashIcon } from './icons';
 import { AdSlot } from './AdSlot';
 import { FONT_CATEGORIES, FONT_OPTIONS, PRESET_COLORS, FontOption, FontStatus, PngSettingsTab } from './PngExportModal.helpers';
 import { parseColor, hexToRgb } from '../utils';
@@ -208,12 +208,14 @@ const ColorSelectorRow: React.FC<{ value: string; onChange: (color: string) => v
 // --- Font Selector Components ---
 
 const FontCard: React.FC<{
-  fontOption: FontOption;
+  fontId: string;
+  fontName: string;
   isSelected: boolean;
   status: FontStatus;
   onSelect: () => void;
   preloadFont: () => void;
-}> = ({ fontOption, isSelected, status, onSelect, preloadFont }) => {
+  onDelete?: () => void;
+}> = ({ fontId, fontName, isSelected, status, onSelect, preloadFont, onDelete }) => {
   const cardRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -239,15 +241,24 @@ const FontCard: React.FC<{
       type="button"
       onClick={onSelect}
       disabled={status === 'loading'}
-      className={`relative flex-shrink-0 w-28 h-16 flex items-center justify-center p-2 border-2 rounded-lg transition-all duration-200 text-center ${isSelected ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/50' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:border-blue-400'}`}
-      style={{ fontFamily: status === 'loaded' ? fontOption.id : 'sans-serif' }}
+      className={`group relative flex-shrink-0 w-28 h-16 flex items-center justify-center p-2 border-2 rounded-lg transition-all duration-200 text-center ${isSelected ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/50' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:border-blue-400'}`}
+      style={{ fontFamily: status === 'loaded' ? fontId : 'sans-serif' }}
     >
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/70 dark:bg-gray-700/70 rounded-md">
           <SpinnerIcon className="w-6 h-6 text-blue-500" />
         </div>
       )}
-      <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{fontOption.name}</span>
+      <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{fontName}</span>
+       {onDelete && (
+        <div
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="absolute -top-2 -right-2 p-1 bg-red-500 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+          title="刪除字體"
+        >
+          <TrashIcon className="w-3 h-3" />
+        </div>
+      )}
     </button>
   );
 };
@@ -262,11 +273,17 @@ interface SettingsPanelsProps {
     localTitle: string;
     setLocalTitle: (title: string) => void;
     fontStatuses: Record<string, FontStatus>;
-    handleFontSelect: (fontOption: FontOption) => void;
+    handleFontSelect: (fontId: string) => void;
     loadFont: (fontOption: FontOption) => Promise<void>;
+    customFonts: CustomFont[];
+    onUploadClick: () => void;
+    onDeleteCustomFont: (fontName: string) => void;
 }
 
-export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ activeTab, pngSettings, updateSetting, localTitle, setLocalTitle, fontStatuses, handleFontSelect, loadFont }) => {
+export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ 
+    activeTab, pngSettings, updateSetting, localTitle, setLocalTitle, 
+    fontStatuses, handleFontSelect, loadFont, customFonts, onUploadClick, onDeleteCustomFont 
+}) => {
     const {
         exportViewMode, pngStyle, bgColor, textColor, borderColor, blockColor, showShadow,
         showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness,
@@ -427,18 +444,49 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ activeTab, pngSe
               <SettingsCard>
                   <SettingsSection title="字體">
                       <div className="space-y-4">
+                          {customFonts.length > 0 && (
+                             <div>
+                                  <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">自訂字體</h4>
+                                  <div className="relative">
+                                      <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                                          {customFonts.map(cf => (
+                                              <FontCard
+                                                  key={cf.name}
+                                                  fontId={cf.name}
+                                                  fontName={cf.name}
+                                                  isSelected={font === cf.name}
+                                                  status={fontStatuses[cf.name] || 'idle'}
+                                                  onSelect={() => handleFontSelect(cf.name)}
+                                                  preloadFont={() => loadFont({ id: cf.name, name: cf.name, urlValue: '' })}
+                                                  onDelete={() => onDeleteCustomFont(cf.name)}
+                                              />
+                                          ))}
+                                          <button onClick={onUploadClick} className="flex-shrink-0 w-16 h-16 flex items-center justify-center p-2 border-2 border-dashed border-gray-400 dark:border-gray-500 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:border-blue-500 transition-colors">
+                                              <span className="text-2xl font-light">+</span>
+                                          </button>
+                                      </div>
+                                  </div>
+                              </div>
+                          )}
+
                           {FONT_CATEGORIES.map(category => (
                               <div key={category.name}>
-                                  <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">{category.name}</h4>
+                                  <div className="flex justify-between items-center mb-2">
+                                    <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">{category.name}</h4>
+                                    {customFonts.length === 0 && category.name === '常用中文字體' && (
+                                        <button onClick={onUploadClick} className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400">+ 上傳字體</button>
+                                    )}
+                                  </div>
                                   <div className="relative">
                                       <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                                           {category.fonts.map(f => (
                                               <FontCard
                                                   key={f.id}
-                                                  fontOption={f}
+                                                  fontId={f.id}
+                                                  fontName={f.name}
                                                   isSelected={font === f.id}
                                                   status={fontStatuses[f.id] || 'idle'}
-                                                  onSelect={() => handleFontSelect(f)}
+                                                  onSelect={() => handleFontSelect(f.id)}
                                                   preloadFont={() => loadFont(f)}
                                               />
                                           ))}

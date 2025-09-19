@@ -1,13 +1,15 @@
 
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode } from '../types';
-import { DownloadIcon, SpinnerIcon } from './icons';
+
+import React from 'react';
+import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode, CustomFont } from '../types';
+import { DownloadIcon, SpinnerIcon, TrashIcon } from './icons';
 import Modal from './Modal';
 import PngExportContent from './PngExportContent';
-import { embedFontForExport } from '../fontUtils';
+import { embedFontForExport, embedCustomFontForExport } from '../fontUtils';
 import { FONT_OPTIONS, ExportStage, PngSettingsTab } from './PngExportModal.helpers';
 import { useFontLoader, usePreviewScaling } from './PngExportModal.hooks';
 import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // The htmlToImage library is loaded via CDN and available on the window object.
 declare const htmlToImage: any;
@@ -22,6 +24,8 @@ interface PngExportModalProps {
     loginPromptContent?: React.ReactNode;
     pngSettings: PngSettingsState;
     setPngSettings: React.Dispatch<React.SetStateAction<PngSettingsState>>;
+    customFonts: CustomFont[];
+    onCustomFontsChange: (fonts: CustomFont[]) => void;
 }
 
 const PngExportModal: React.FC<PngExportModalProps> = ({
@@ -33,12 +37,15 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     currentDate,
     loginPromptContent,
     pngSettings,
-    setPngSettings
+    setPngSettings,
+    customFonts,
+    onCustomFontsChange,
 }) => {
     // --- Refs ---
     const exportRef = useRef<HTMLDivElement>(null);
     const previewContainerRef = useRef<HTMLDivElement>(null);
     const scaleWrapperRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     
     // --- State Management ---
     const [activeTab, setActiveTab] = useState<PngSettingsTab>('content');
@@ -52,7 +59,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     };
 
     // --- Custom Hooks for complex logic ---
-    const { fontStatuses, loadFont } = useFontLoader();
+    const { fontStatuses, loadFont } = useFontLoader(customFonts);
     const propsForContent = useMemo(() => ({
         scheduleData, title: localTitle, calendarDays, currentDate,
         ...pngSettings,
@@ -79,33 +86,68 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     
     useEffect(() => {
         if (isOpen) {
-            const selectedFontOption = FONT_OPTIONS.find(f => f.id === pngSettings.font);
-            if (selectedFontOption && selectedFontStatus === 'idle') {
+            const allFonts = [...FONT_OPTIONS, ...customFonts.map(cf => ({ id: cf.name, name: cf.name, urlValue: '' }))];
+            const selectedFontOption = allFonts.find(f => f.id === pngSettings.font);
+
+            if (selectedFontOption && (fontStatuses[pngSettings.font] || 'idle') === 'idle') {
                 loadFont(selectedFontOption).catch(e => console.error("Failed to preload selected font:", e));
             }
         }
-    }, [isOpen, pngSettings.font, selectedFontStatus, loadFont]);
+    }, [isOpen, pngSettings.font, fontStatuses, loadFont, customFonts]);
 
     // --- Event Handlers ---
-    // FINAL FIX: This is the definitive solution. We proactively load the font
-    // the moment the user selects it, decoupling the slow font-loading process
-    // from the time-sensitive export process.
-    const handleFontSelect = useCallback(async (fontOption: typeof FONT_OPTIONS[0]) => {
-        const { id } = fontOption;
-        // Immediately update the setting to trigger UI changes.
-        updateSetting('font', id);
-        
-        // If the font isn't already loaded or loading, start the process.
-        if ((fontStatuses[id] || 'idle') === 'idle') {
-            try {
-                // This now pre-warms the cache. By the time the user clicks "export",
-                // this process will have been completed for seconds or minutes.
-                await loadFont(fontOption);
-            } catch (error) {
-                alert(`無法載入字體：${fontOption.name}。請檢查您的網路連線。`);
+    const handleFontSelect = useCallback(async (fontId: string) => {
+        updateSetting('font', fontId);
+
+        if ((fontStatuses[fontId] || 'idle') === 'idle') {
+            const allFonts = [...FONT_OPTIONS, ...customFonts.map(cf => ({ id: cf.name, name: cf.name, urlValue: '' }))];
+            const fontOption = allFonts.find(f => f.id === fontId);
+            if(fontOption) {
+                try {
+                    await loadFont(fontOption);
+                } catch (error) {
+                    alert(`無法載入字體：${fontOption.name}。請檢查您的網路連線或檔案。`);
+                }
             }
         }
-    }, [fontStatuses, loadFont, updateSetting]);
+    }, [fontStatuses, loadFont, updateSetting, customFonts]);
+    
+    const handleCustomFontUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (customFonts.some(f => f.name === file.name)) {
+            alert('已存在同名字體！');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = e.target?.result as string;
+            const newFont: CustomFont = { name: file.name, data: dataUrl };
+            const newCustomFonts = [...customFonts, newFont];
+            onCustomFontsChange(newCustomFonts);
+            handleFontSelect(newFont.name); // Select the new font immediately
+        };
+        reader.onerror = () => {
+            alert('讀取字體檔案失敗！');
+        };
+        reader.readAsDataURL(file);
+        
+        // Reset file input to allow uploading the same file again after deletion
+        if(event.target) {
+            event.target.value = '';
+        }
+    };
+
+    const handleCustomFontDelete = (fontNameToDelete: string) => {
+        const newCustomFonts = customFonts.filter(f => f.name !== fontNameToDelete);
+        onCustomFontsChange(newCustomFonts);
+        // If the deleted font was the selected one, select the default font
+        if (pngSettings.font === fontNameToDelete) {
+            updateSetting('font', FONT_OPTIONS[0].id);
+        }
+    };
 
     const handleStartExport = useCallback(async () => {
         const exportNode = exportRef.current;
@@ -120,16 +162,21 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         const styleElement = document.createElement('style');
 
         try {
-            const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
-            if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
-            
-            // This function now primarily retrieves from cache, making it near-instant.
-            const fontEmbedCSS = await embedFontForExport(selectedFont);
+            const fontId = pngSettings.font;
+            const customFont = customFonts.find(cf => cf.name === fontId);
+            let fontEmbedCSS: string;
+
+            if (customFont) {
+                fontEmbedCSS = embedCustomFontForExport(customFont);
+            } else {
+                const selectedFont = FONT_OPTIONS.find(f => f.id === fontId);
+                if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
+                fontEmbedCSS = await embedFontForExport(selectedFont);
+            }
             
             styleElement.textContent = fontEmbedCSS;
             exportNode.appendChild(styleElement);
             
-            // Wait for the DOM to update with the injected style.
             await new Promise(resolve => requestAnimationFrame(resolve));
             
             setLoadingMessage('正在生成圖片...');
@@ -138,11 +185,13 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 quality: 1.0,
                 pixelRatio: 2,
                 filter: (node: HTMLElement) => {
-                    if (node.tagName === 'LINK' && node.hasAttribute('href') && (node as HTMLLinkElement).href.includes('fonts.googleapis.com')) {
+                    // Exclude external Google Fonts stylesheets to prevent CORS errors.
+                    // The selected font is already embedded directly into the export node.
+                    if (node.tagName === 'LINK' && (node as HTMLLinkElement).href?.includes('fonts.googleapis.com')) {
                         return false;
                     }
                     return true;
-                }
+                },
             });
             
             setGeneratedPngDataUrl(dataUrl);
@@ -157,7 +206,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 exportNode.removeChild(styleElement);
             }
         }
-    }, [pngSettings.font, propsForContent.bgColor]);
+    }, [pngSettings.font, customFonts, propsForContent.bgColor]);
 
 
     const handleOpenInNewTab = useCallback(async () => {
@@ -214,6 +263,13 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
 
     return (
         <Modal isOpen={isOpen} onClose={isExporting ? () => {} : onClose} headerContent={header} footerContent={footer} modalClassName="xl:max-w-4xl">
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleCustomFontUpload}
+                accept=".ttf,.otf,.woff,.woff2"
+                style={{ display: 'none' }}
+            />
             <div
                 style={{ position: 'fixed', top: 0, left: -99999, pointerEvents: 'none', opacity: 0 }}
               >
@@ -264,6 +320,9 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                         fontStatuses={fontStatuses}
                         handleFontSelect={handleFontSelect}
                         loadFont={loadFont}
+                        customFonts={customFonts}
+                        onUploadClick={() => fileInputRef.current?.click()}
+                        onDeleteCustomFont={handleCustomFontDelete}
                       />
                     </div>
                 </div>
