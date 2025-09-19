@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode, CustomFont } from '../types';
 import { DownloadIcon, SpinnerIcon, TrashIcon } from './icons';
@@ -157,11 +156,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
 
         setExportStage('generating_image');
-        setLoadingMessage('準備資源...');
-        
         const styleElement = document.createElement('style');
 
         try {
+            // --- COMMON SETUP: Prepare font resources ---
+            setLoadingMessage('準備資源...');
             const fontId = pngSettings.font;
             const customFont = customFonts.find(cf => cf.name === fontId);
             let fontEmbedCSS: string;
@@ -176,22 +175,35 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             
             styleElement.textContent = fontEmbedCSS;
             exportNode.appendChild(styleElement);
-            
             await new Promise(resolve => requestAnimationFrame(resolve));
             
+            const filter = (node: HTMLElement) => {
+                if (node.tagName === 'LINK' && (node as HTMLLinkElement).href?.includes('fonts.googleapis.com')) {
+                    return false;
+                }
+                return true;
+            };
+
+            // --- STAGE 1: THE PRIMING RENDER ---
+            setLoadingMessage('正在準備引擎...');
+            try {
+                await htmlToImage.toPng(exportNode, {
+                    pixelRatio: 0.1, // Low quality for speed
+                    quality: 0.1,    // Low quality for speed
+                    filter: filter,
+                });
+            } catch (primingError) {
+                console.log('Priming render failed as expected, which is normal on some devices. Continuing...', primingError);
+                // This error is expected and intentionally ignored.
+            }
+
+            // --- STAGE 2: THE PRODUCTION RENDER ---
             setLoadingMessage('正在生成圖片...');
             const dataUrl = await htmlToImage.toPng(exportNode, {
                 backgroundColor: propsForContent.bgColor === 'transparent' ? null : propsForContent.bgColor,
                 quality: 1.0,
                 pixelRatio: 2,
-                filter: (node: HTMLElement) => {
-                    // Exclude external Google Fonts stylesheets to prevent CORS errors.
-                    // The selected font is already embedded directly into the export node.
-                    if (node.tagName === 'LINK' && (node as HTMLLinkElement).href?.includes('fonts.googleapis.com')) {
-                        return false;
-                    }
-                    return true;
-                },
+                filter: filter,
             });
             
             setGeneratedPngDataUrl(dataUrl);
@@ -202,6 +214,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         } finally {
+            // --- CLEANUP ---
             if (exportNode.contains(styleElement)) {
                 exportNode.removeChild(styleElement);
             }
