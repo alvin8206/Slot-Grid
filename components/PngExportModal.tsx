@@ -4,7 +4,6 @@ import { DownloadIcon, SpinnerIcon } from './icons';
 import Modal from './Modal';
 import PngExportContent from './PngExportContent';
 import { embedFontForExport } from '../fontUtils';
-import { getPrimaryFamily } from '../fonts';
 import { FONT_OPTIONS, ExportStage, PngSettingsTab } from './PngExportModal.helpers';
 import { useFontLoader, usePreviewScaling } from './PngExportModal.hooks';
 import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
@@ -107,44 +106,40 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
 
         setExportStage('generating_image');
+        setLoadingMessage('準備資源...');
         
-        // Create a temporary style element for pre-loading that we can clean up later.
-        const tempStyle = document.createElement('style');
-        
-        try {
-            // --- Stage 1: Proactive Resource Injection & Authoritative Cache Priming ---
-            setLoadingMessage('正在準備字體資源...');
-            // Wait for the next animation frame to ensure any pending UI updates (like from Tailwind JIT) are complete.
-            await new Promise(resolve => requestAnimationFrame(resolve));
+        // This will be our injected style element.
+        const styleElement = document.createElement('style');
 
+        try {
+            // Step 1: Prepare the self-contained font resource.
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
-            
-            // Get the self-contained @font-face CSS with Base64 data.
             const fontEmbedCSS = await embedFontForExport(selectedFont);
             
-            // Inject the font definition directly into the main document's head.
-            tempStyle.textContent = fontEmbedCSS;
-            document.head.appendChild(tempStyle);
-
-            // Use the browser's most reliable API to force it to load the font from the injected Base64 data.
-            // This is the crucial "priming" step that populates the browser's internal font cache.
-            const primaryFontFamily = getPrimaryFamily(selectedFont.id);
-            setLoadingMessage('正在預載字體...');
-            await document.fonts.load(`1em "${primaryFontFamily}"`);
+            // Step 2: Inject the font styles directly into the node that will be cloned.
+            // This is the most robust way to ensure styles are available in the sandboxed environment.
+            styleElement.textContent = fontEmbedCSS;
+            exportNode.appendChild(styleElement);
             
-            // Give the browser one more frame as an insurance policy for rendering pipelines to catch up.
+            // Step 3: Wait for the next animation frame. This is crucial to ensure the DOM
+            // update (style injection) is processed by the browser before html-to-image reads the DOM.
             await new Promise(resolve => requestAnimationFrame(resolve));
-
-            // --- Stage 2: Production Render with Embedded Resources ---
+            
+            // Step 4: Execute the conversion. We are NOT using any special font options,
+            // relying on the injected style tag being part of the standard DOM.
             setLoadingMessage('正在生成圖片...');
             const dataUrl = await htmlToImage.toPng(exportNode, {
-                // We STILL pass the font CSS here. The library's sandbox needs its own copy,
-                // but now it will be an instantaneous cache hit because of the priming step above.
-                fontEmbedCSS: fontEmbedCSS,
                 backgroundColor: propsForContent.bgColor === 'transparent' ? null : propsForContent.bgColor,
                 quality: 1.0,
                 pixelRatio: 2,
+                // Add a filter to avoid issues with external resources that might still be in the main document's head.
+                filter: (node: HTMLElement) => {
+                    if (node.tagName === 'LINK' && node.hasAttribute('href') && (node as HTMLLinkElement).href.includes('fonts.googleapis.com')) {
+                        return false;
+                    }
+                    return true;
+                }
             });
             
             setGeneratedPngDataUrl(dataUrl);
@@ -155,10 +150,9 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         } finally {
-            // --- Cleanup ---
-            // ALWAYS remove the temporary style element, whether the export succeeded or failed.
-            if (document.head.contains(tempStyle)) {
-                document.head.removeChild(tempStyle);
+            // Step 5: Clean up. ALWAYS remove the injected style element.
+            if (exportNode.contains(styleElement)) {
+                exportNode.removeChild(styleElement);
             }
         }
     }, [pngSettings.font, propsForContent.bgColor]);
