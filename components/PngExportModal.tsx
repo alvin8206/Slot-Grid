@@ -109,49 +109,61 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
 
         setExportStage('generating_image');
-
-        // A minimum delay for better UX, ensuring loading messages are visible.
         const delayPromise = new Promise(resolve => setTimeout(resolve, 2000));
 
         const generationTask = async () => {
             const selectedFont = FONT_OPTIONS.find(f => f.id === pngSettings.font);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
-
+            
+            const styleNodeId = 'dynamic-font-for-export';
+            
             try {
                 // Step 1: Get the self-contained @font-face CSS string with Base64 data.
                 setLoadingMessage('正在內嵌字體...');
                 const fontEmbedCSS = await embedFontForExport(selectedFont);
 
-                setLoadingMessage('正在繪製圖片...');
+                // Step 2: Manually inject the font CSS into the document head.
+                const styleNode = document.createElement('style');
+                styleNode.id = styleNodeId;
+                styleNode.innerHTML = fontEmbedCSS;
+                document.head.appendChild(styleNode);
 
-                // Step 2: Delegate font handling entirely to the library.
-                // This is the most robust way to handle cross-browser font rendering.
+                // Step 3: Crucially, wait for the browser to acknowledge and load the font.
+                setLoadingMessage('等待字體渲染...');
+                const primaryFontFamily = getPrimaryFamily(selectedFont.id);
+                await document.fonts.load(`1em "${primaryFontFamily}"`);
+                
+                // Step 4 (Insurance for iOS): Wait for a repaint cycle.
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+                setLoadingMessage('正在繪製圖片...');
+                
+                // Step 5: Call html-to-image. The font is now globally available.
                 const dataUrl = await htmlToImage.toPng(exportNode, {
                     quality: 1,
                     pixelRatio: 2,
                     backgroundColor: pngSettings.bgColor,
-                    fontEmbedCSS: fontEmbedCSS, // Pass the CSS directly to the library.
-                    
-                    // Filter out external font stylesheets from the main document
-                    // to prevent CORS errors during the capture process.
-                    // FIX: Cast node to HTMLLinkElement to safely access 'href' property.
-                    // The 'href' property is not on the base HTMLElement type, causing a TypeScript error.
                     filter: (node: HTMLElement) => {
                         if (node.tagName === 'LINK') {
                             const linkNode = node as HTMLLinkElement;
                             if (linkNode.href && linkNode.href.includes('fonts.googleapis.com')) {
-                                return false; // Exclude these nodes
+                                return false;
                             }
                         }
-                        return true; // Keep all other nodes
+                        return true;
                     },
                 });
                 
                 setGeneratedPngDataUrl(dataUrl);
 
             } catch (error) {
-                // Re-throw to be caught by the outer try-catch block
                 throw error;
+            } finally {
+                // Step 6: Clean up by removing the injected style node.
+                const nodeToRemove = document.getElementById(styleNodeId);
+                if (nodeToRemove) {
+                    nodeToRemove.remove();
+                }
             }
         };
 
