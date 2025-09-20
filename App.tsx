@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import type { ScheduleData, CalendarDay, Slot, DayData, PngSettingsState, TextExportSettingsState, CustomFont } from './types';
 import { MONTH_NAMES, DAY_NAMES } from './constants';
-import { ChevronLeftIcon, ChevronRightIcon, CalendarIcon, EditIcon, TrashIcon, UserIcon, CheckIcon } from './components/icons';
+import { ChevronLeftIcon, ChevronRightIcon, CalendarIcon, EditIcon, TrashIcon, UserIcon, CheckIcon, SpinnerIcon } from './components/icons';
 import { auth, db, isFirebaseConfigured } from './firebaseClient';
 
 import Modal from './components/Modal';
@@ -20,6 +20,8 @@ interface User {
   displayName: string | null;
   photoURL: string | null;
 }
+
+type AuthStatus = 'loading' | 'authenticated' | 'anonymous';
 
 const defaultPngSettings: PngSettingsState = {
     exportViewMode: 'month',
@@ -80,6 +82,9 @@ const App: React.FC = () => {
     const [pngSettings, setPngSettings] = useState<PngSettingsState>(defaultPngSettings);
     const [textExportSettings, setTextExportSettings] = useState<TextExportSettingsState>(defaultTextExportSettings);
     const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+    
+    // NEW: Auth status state to prevent race conditions
+    const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
 
 
     useLayoutEffect(() => {
@@ -113,50 +118,68 @@ const App: React.FC = () => {
         return db.collection('users').doc(user.uid).collection('schedules').doc('default');
     }, [user]);
 
+    // MODIFIED: Handle auth state changes and set the definitive authStatus
     useEffect(() => {
-        if (!isFirebaseConfigured) return;
+        if (!isFirebaseConfigured) {
+            setAuthStatus('anonymous');
+            return;
+        }
         const unsubscribe = auth.onAuthStateChanged((user: User | null) => {
             setUser(user);
+            setAuthStatus(user ? 'authenticated' : 'anonymous');
         });
         return () => unsubscribe();
     }, []);
 
+    // MODIFIED: Data loading is now driven by authStatus, not docRef
     useEffect(() => {
-        if (docRef) {
-            docRef.get().then((doc: { exists: any; data: () => any; }) => {
-                if (doc.exists) {
-                    const data = doc.data();
-                    if(data){
-                        setScheduleData(data.schedule || {});
-                        setTitle(data.title || "可預約時段");
-                        setTextExportSettings(prev => ({ ...prev, ...(data.textExportSettings || {}) }));
-                        setPngSettings(prev => ({ ...prev, ...(data.pngSettings || {}) }));
-                        setCustomFonts(data.customFonts || []);
-                    }
-                }
-            }).catch((error: any) => console.error("Error loading data from Firestore:", error));
-        } else {
-            try {
-                const localSchedule = localStorage.getItem('scheduleData');
-                if (localSchedule) setScheduleData(JSON.parse(localSchedule));
-
-                const localTitle = localStorage.getItem('scheduleTitle');
-                if (localTitle) setTitle(localTitle);
-                
-                const localTextSettings = localStorage.getItem('textExportSettings');
-                if (localTextSettings) setTextExportSettings(JSON.parse(localTextSettings));
-
-                const localPngSettings = localStorage.getItem('pngSettings');
-                if (localPngSettings) setPngSettings(JSON.parse(localPngSettings));
-                
-                const localCustomFonts = localStorage.getItem('customFonts');
-                if (localCustomFonts) setCustomFonts(JSON.parse(localCustomFonts));
-            } catch (error) {
-                console.error("Failed to parse local storage data:", error);
-                localStorage.clear(); // Clear all potentially corrupted data
+        const loadData = async () => {
+            if (authStatus === 'loading') {
+                return; // Do nothing until auth state is resolved
             }
-        }
-    }, [docRef]);
+
+            if (authStatus === 'authenticated' && user) {
+                const userDocRef = db.collection('users').doc(user.uid).collection('schedules').doc('default');
+                try {
+                    const doc = await userDocRef.get();
+                    if (doc.exists) {
+                        const data = doc.data();
+                        if (data) {
+                            setScheduleData(data.schedule || {});
+                            setTitle(data.title || "可預約時段");
+                            setTextExportSettings(prev => ({ ...prev, ...(data.textExportSettings || {}) }));
+                            setPngSettings(prev => ({ ...prev, ...(data.pngSettings || {}) }));
+                            setCustomFonts(data.customFonts || []);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error loading data from Firestore:", error);
+                }
+            } else { // 'anonymous'
+                try {
+                    const localSchedule = localStorage.getItem('scheduleData');
+                    if (localSchedule) setScheduleData(JSON.parse(localSchedule));
+
+                    const localTitle = localStorage.getItem('scheduleTitle');
+                    if (localTitle) setTitle(localTitle);
+                    
+                    const localTextSettings = localStorage.getItem('textExportSettings');
+                    if (localTextSettings) setTextExportSettings(JSON.parse(localTextSettings));
+
+                    const localPngSettings = localStorage.getItem('pngSettings');
+                    if (localPngSettings) setPngSettings(JSON.parse(localPngSettings));
+                    
+                    const localCustomFonts = localStorage.getItem('customFonts');
+                    if (localCustomFonts) setCustomFonts(JSON.parse(localCustomFonts));
+                } catch (error) {
+                    console.error("Failed to parse local storage data:", error);
+                    localStorage.clear();
+                }
+            }
+        };
+        
+        loadData();
+    }, [authStatus, user]);
     
     const updateAndSaveState = useCallback((updates: Partial<{
         scheduleData: ScheduleData;
@@ -195,7 +218,7 @@ const App: React.FC = () => {
             if ('pngSettings' in cleanUpdates) firestoreUpdates.pngSettings = cleanUpdates.pngSettings;
             if ('customFonts' in cleanUpdates) firestoreUpdates.customFonts = cleanUpdates.customFonts;
 
-            docRef.update(firestoreUpdates)
+            docRef.set(firestoreUpdates, { merge: true }) // Use set with merge to be safer
                 .catch((error: any) => console.error("Error saving data to Firestore:", error));
         } else {
             if ('scheduleData' in cleanUpdates) localStorage.setItem('scheduleData', JSON.stringify(cleanUpdates.scheduleData!));
@@ -207,18 +230,20 @@ const App: React.FC = () => {
     }, [docRef]);
 
     useEffect(() => {
+        if (authStatus === 'loading') return;
         const handler = setTimeout(() => {
              updateAndSaveState({ textExportSettings });
         }, 1000);
         return () => clearTimeout(handler);
-    }, [textExportSettings, updateAndSaveState]);
+    }, [textExportSettings, updateAndSaveState, authStatus]);
 
     useEffect(() => {
+        if (authStatus === 'loading') return;
         const handler = setTimeout(() => {
             updateAndSaveState({ pngSettings });
         }, 1000);
         return () => clearTimeout(handler);
-    }, [pngSettings, updateAndSaveState]);
+    }, [pngSettings, updateAndSaveState, authStatus]);
 
 
     const calendarDays = useMemo<CalendarDay[]>(() => {
@@ -364,7 +389,18 @@ const App: React.FC = () => {
         setDatesToDelete(new Set());
     };
     
-    const loginPromptContent = isFirebaseConfigured && !user ? <LoginPrompt onLoginClick={() => setIsAuthModalOpen(true)} /> : null;
+    const loginPromptContent = isFirebaseConfigured && authStatus === 'anonymous' ? <LoginPrompt onLoginClick={() => setIsAuthModalOpen(true)} /> : null;
+
+    if (authStatus === 'loading') {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+                <div className="text-center">
+                    <SpinnerIcon className="w-12 h-12 text-blue-600 mx-auto" />
+                    <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">正在驗證身份...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
