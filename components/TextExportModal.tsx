@@ -40,8 +40,8 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
 
     const {
         layout, language, includeTitle, includeYear, showMonth,
-        showBooked, showDayOfWeek, showFullyBooked, showDayOff, bookedStyle,
-        slotSeparator
+        showBooked, showDayOfWeek, showFullyBooked, showDayOff, showTraining, bookedStyle,
+        slotSeparator, dateFilter
     } = textExportSettings;
 
     const updateSetting = <K extends keyof TextExportSettingsState>(key: K, value: TextExportSettingsState[K]) => {
@@ -60,12 +60,21 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
         const sortedDates = Object.keys(scheduleData)
             .filter(key => {
                 const date = new Date(key);
-                return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
+                const isInMonth = date.getFullYear() === currentYear && date.getMonth() === currentMonth;
+                if (!isInMonth) return false;
+
+                if (dateFilter === 'weekdays') {
+                    const dayOfWeek = date.getDay();
+                    return dayOfWeek >= 1 && dayOfWeek <= 5;
+                }
+                if (dateFilter === 'weekends') {
+                    const dayOfWeek = date.getDay();
+                    return dayOfWeek === 0 || dayOfWeek === 6;
+                }
+                return true;
             })
             .sort((a, b) => a.localeCompare(b));
             
-        // FIX: Define ExportLine as a discriminated union to correctly correlate 'type' and the type of 'content'.
-        // This resolves the type predicate error by ensuring the type is specific.
         type ExportLine = {
             datePart: string;
             dayOfWeekPart: string;
@@ -87,6 +96,7 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                 if (effectiveStatus === 'empty') return null;
                 if (effectiveStatus === 'fullyBooked' && !showFullyBooked) return null;
                 if ((effectiveStatus === 'dayOff' || effectiveStatus === 'closed') && !showDayOff) return null;
+                if (effectiveStatus === 'training' && !showTraining) return null;
 
                 const year = date.getFullYear();
                 const month = (date.getMonth() + 1).toString();
@@ -213,6 +223,22 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
         </>
     );
     
+    const ToggleSwitch: React.FC<{
+      id: string;
+      label: string;
+      checked: boolean;
+      onChange: (checked: boolean) => void;
+    }> = ({ id, label, checked, onChange }) => (
+      <label htmlFor={id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
+        <div className="relative">
+          <input type="checkbox" id={id} className="sr-only peer" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+          <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
+          <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
+        </div>
+      </label>
+    );
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer}>
             <div className="space-y-6">
@@ -249,6 +275,15 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                     </div>
                 </div>
 
+                 <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">顯示範圍</label>
+                    <div className="grid grid-cols-3 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                        <button onClick={() => updateSetting('dateFilter', 'all')} className={`py-2 rounded-lg transition-all text-sm font-medium ${dateFilter === 'all' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>全部</button>
+                        <button onClick={() => updateSetting('dateFilter', 'weekdays')} className={`py-2 rounded-lg transition-all text-sm font-medium ${dateFilter === 'weekdays' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>僅平日</button>
+                        <button onClick={() => updateSetting('dateFilter', 'weekends')} className={`py-2 rounded-lg transition-all text-sm font-medium ${dateFilter === 'weekends' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>僅假日</button>
+                    </div>
+                </div>
+
                 <div className="space-y-2">
                     <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">時段分隔符</label>
                     <div className="grid grid-cols-7 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
@@ -272,73 +307,26 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                     </div>
                 </div>
                 
-                <div className="space-y-3">
-                    <label htmlFor="include-title" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示標題</span>
-                        <div className="relative">
-                            <input type="checkbox" id="include-title" className="sr-only peer" checked={includeTitle} onChange={e => updateSetting('includeTitle', e.target.checked)} />
-                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                        </div>
-                    </label>
-                    <label htmlFor="include-year" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示年份</span>
-                        <div className="relative">
-                            <input type="checkbox" id="include-year" className="sr-only peer" checked={includeYear} onChange={e => updateSetting('includeYear', e.target.checked)} />
-                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                        </div>
-                    </label>
-                    <label htmlFor="show-month" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示月份</span>
-                        <div className="relative">
-                            <input type="checkbox" id="show-month" className="sr-only peer" checked={showMonth} onChange={e => updateSetting('showMonth', e.target.checked)} />
-                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                        </div>
-                    </label>
-                    <label htmlFor="show-day-of-week" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示星期</span>
-                        <div className="relative">
-                            <input type="checkbox" id="show-day-of-week" className="sr-only peer" checked={showDayOfWeek} onChange={e => updateSetting('showDayOfWeek', e.target.checked)} />
-                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                        </div>
-                    </label>
-                    <label htmlFor="show-day-off" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示休假日</span>
-                        <div className="relative">
-                            <input type="checkbox" id="show-day-off" className="sr-only peer" checked={showDayOff} onChange={e => updateSetting('showDayOff', e.target.checked)} />
-                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                        </div>
-                    </label>
-                     <label htmlFor="show-fully-booked" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示已額滿日</span>
-                        <div className="relative">
-                            <input type="checkbox" id="show-fully-booked" className="sr-only peer" checked={showFullyBooked} onChange={e => updateSetting('showFullyBooked', e.target.checked)} />
-                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                        </div>
-                    </label>
-                    <label htmlFor="show-booked" className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">顯示已預約時段</span>
-                        <div className="relative">
-                            <input type="checkbox" id="show-booked" className="sr-only peer" checked={showBooked} onChange={e => updateSetting('showBooked', e.target.checked)} />
-                            <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
-                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
-                        </div>
-                    </label>
-                    {showBooked && (
-                        <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
-                            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
-                            <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                                <button onClick={() => updateSetting('bookedStyle', 'strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>刪除線</button>
-                                <button onClick={() => updateSetting('bookedStyle', 'annotation')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'annotation' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>文字註記</button>
-                            </div>
-                        </div>
-                    )}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <ToggleSwitch id="include-title" label="顯示標題" checked={includeTitle} onChange={c => updateSetting('includeTitle', c)} />
+                  <ToggleSwitch id="include-year" label="顯示年份" checked={includeYear} onChange={c => updateSetting('includeYear', c)} />
+                  <ToggleSwitch id="show-month" label="顯示月份" checked={showMonth} onChange={c => updateSetting('showMonth', c)} />
+                  <ToggleSwitch id="show-day-of-week" label="顯示星期" checked={showDayOfWeek} onChange={c => updateSetting('showDayOfWeek', c)} />
+                  <ToggleSwitch id="show-day-off" label="顯示休假日" checked={showDayOff} onChange={c => updateSetting('showDayOff', c)} />
+                  <ToggleSwitch id="show-fully-booked" label="顯示已額滿日" checked={showFullyBooked} onChange={c => updateSetting('showFullyBooked', c)} />
+                  <ToggleSwitch id="show-training" label="顯示進修日" checked={showTraining} onChange={c => updateSetting('showTraining', c)} />
+                  <ToggleSwitch id="show-booked" label="顯示已預約時段" checked={showBooked} onChange={c => updateSetting('showBooked', c)} />
                 </div>
+                
+                {showBooked && (
+                  <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
+                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
+                      <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                          <button onClick={() => updateSetting('bookedStyle', 'strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>刪除線</button>
+                          <button onClick={() => updateSetting('bookedStyle', 'annotation')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'annotation' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>文字註記</button>
+                      </div>
+                  </div>
+                )}
             </div>
         </Modal>
     );
