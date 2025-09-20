@@ -274,7 +274,7 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({
         exportViewMode, pngStyle, bgColor, textColor, borderColor, blockColor, showShadow,
         showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness,
         font, language, horizontalGap, verticalGap, titleAlign,
-        dayOffColor, closedColor, fullyBookedColor, slotLayout, fontScale
+        dayOffColor, closedColor, fullyBookedColor, trainingColor, slotLayout, fontScale
     } = pngSettings;
     
     const handleStyleChange = (style: PngStyle) => {
@@ -394,6 +394,8 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({
                           <ColorSelectorRow presets={PRESET_COLORS.status} value={closedColor} onChange={(c) => updateSetting('closedColor', c)} />
                           <span className="text-sm font-medium text-gray-600 dark:text-gray-400">約滿文字</span>
                           <ColorSelectorRow presets={PRESET_COLORS.status} value={fullyBookedColor} onChange={(c) => updateSetting('fullyBookedColor', c)} />
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">進修文字</span>
+                          <ColorSelectorRow presets={PRESET_COLORS.status} value={trainingColor} onChange={(c) => updateSetting('trainingColor', c)} />
                       </div>
                   </div>
                   
