@@ -12,7 +12,7 @@ export interface PngExportContentProps extends PngSettingsState {
 }
 
 const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>(({
-    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign, dayOffColor, closedColor, fullyBookedColor, slotLayout
+    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign, dayOffColor, closedColor, fullyBookedColor, trainingColor, slotLayout
 }, ref) => {
     
     const monthNames = language === 'zh' ? MONTH_NAMES : MONTH_NAMES_EN;
@@ -34,6 +34,7 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
             case 'dayOff': return dayOffColor;
             case 'closed': return closedColor;
             case 'fullyBooked': return fullyBookedColor;
+            case 'training': return trainingColor;
             default: return textColor;
         }
     };
