@@ -31,11 +31,6 @@ export type PngExportViewMode = 'month' | 'remaining' | 'list';
 
 export type TitleAlign = 'left' | 'center' | 'right';
 
-export interface CustomFont {
-  name: string; // Filename, used as a unique ID
-  data: string; // Base64 Data URL
-}
-
 export interface PngSettingsState {
   exportViewMode: PngExportViewMode;
   pngStyle: PngStyle;

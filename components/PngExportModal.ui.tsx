@@ -1,6 +1,5 @@
-// components/PngExportModal.ui.tsx
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { PngSettingsState, PngStyle, PngExportViewMode, TitleAlign, CustomFont } from '../types';
+import type { PngSettingsState, PngStyle, PngExportViewMode, TitleAlign } from '../types';
 import { DownloadIcon, CheckIcon, SpinnerIcon, RainbowIcon, TrashIcon } from './icons';
 import { AdSlot } from './AdSlot';
 import { FONT_CATEGORIES, FONT_OPTIONS, PRESET_COLORS, FontOption, FontStatus, PngSettingsTab } from './PngExportModal.helpers';
@@ -214,8 +213,7 @@ const FontCard: React.FC<{
   status: FontStatus;
   onSelect: () => void;
   preloadFont: () => void;
-  onDelete?: () => void;
-}> = ({ fontId, fontName, isSelected, status, onSelect, preloadFont, onDelete }) => {
+}> = ({ fontId, fontName, isSelected, status, onSelect, preloadFont }) => {
   const cardRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -250,15 +248,6 @@ const FontCard: React.FC<{
         </div>
       )}
       <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{fontName}</span>
-       {onDelete && (
-        <div
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="absolute -top-2 -right-2 p-1 bg-red-500 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-          title="刪除字體"
-        >
-          <TrashIcon className="w-3 h-3" />
-        </div>
-      )}
     </button>
   );
 };
@@ -275,14 +264,11 @@ interface SettingsPanelsProps {
     fontStatuses: Record<string, FontStatus>;
     handleFontSelect: (fontId: string) => void;
     loadFont: (fontOption: FontOption) => Promise<void>;
-    customFonts: CustomFont[];
-    onUploadClick: () => void;
-    onDeleteCustomFont: (fontName: string) => void;
 }
 
 export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ 
     activeTab, pngSettings, updateSetting, localTitle, setLocalTitle, 
-    fontStatuses, handleFontSelect, loadFont, customFonts, onUploadClick, onDeleteCustomFont 
+    fontStatuses, handleFontSelect, loadFont
 }) => {
     const {
         exportViewMode, pngStyle, bgColor, textColor, borderColor, blockColor, showShadow,
@@ -444,38 +430,10 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({
               <SettingsCard>
                   <SettingsSection title="字體">
                       <div className="space-y-4">
-                          {customFonts.length > 0 && (
-                             <div>
-                                  <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">自訂字體</h4>
-                                  <div className="relative">
-                                      <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                                          {customFonts.map(cf => (
-                                              <FontCard
-                                                  key={cf.name}
-                                                  fontId={cf.name}
-                                                  fontName={cf.name}
-                                                  isSelected={font === cf.name}
-                                                  status={fontStatuses[cf.name] || 'idle'}
-                                                  onSelect={() => handleFontSelect(cf.name)}
-                                                  preloadFont={() => loadFont({ id: cf.name, name: cf.name, urlValue: '' })}
-                                                  onDelete={() => onDeleteCustomFont(cf.name)}
-                                              />
-                                          ))}
-                                          <button onClick={onUploadClick} className="flex-shrink-0 w-16 h-16 flex items-center justify-center p-2 border-2 border-dashed border-gray-400 dark:border-gray-500 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:border-blue-500 transition-colors">
-                                              <span className="text-2xl font-light">+</span>
-                                          </button>
-                                      </div>
-                                  </div>
-                              </div>
-                          )}
-
                           {FONT_CATEGORIES.map(category => (
                               <div key={category.name}>
                                   <div className="flex justify-between items-center mb-2">
                                     <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">{category.name}</h4>
-                                    {customFonts.length === 0 && category.name === '常用中文字體' && (
-                                        <button onClick={onUploadClick} className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400">+ 上傳字體</button>
-                                    )}
                                   </div>
                                   <div className="relative">
                                       <div className="flex space-x-3 overflow-x-auto pb-4 -mb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">

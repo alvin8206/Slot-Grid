@@ -1,9 +1,9 @@
 import React from 'react';
-import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode, CustomFont } from '../types';
+import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode } from '../types';
 import { DownloadIcon, SpinnerIcon, TrashIcon } from './icons';
 import Modal from './Modal';
 import PngExportContent from './PngExportContent';
-import { embedFontForExport, embedCustomFontForExport } from '../fontUtils';
+import { embedFontForExport } from '../fontUtils';
 import { FONT_OPTIONS, ExportStage, PngSettingsTab } from './PngExportModal.helpers';
 import { useFontLoader, usePreviewScaling } from './PngExportModal.hooks';
 import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
@@ -22,8 +22,6 @@ interface PngExportModalProps {
     loginPromptContent?: React.ReactNode;
     pngSettings: PngSettingsState;
     setPngSettings: React.Dispatch<React.SetStateAction<PngSettingsState>>;
-    customFonts: CustomFont[];
-    onCustomFontsChange: (fonts: CustomFont[]) => void;
 }
 
 const PngExportModal: React.FC<PngExportModalProps> = ({
@@ -36,14 +34,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     loginPromptContent,
     pngSettings,
     setPngSettings,
-    customFonts,
-    onCustomFontsChange,
 }) => {
     // --- Refs ---
     const exportRef = useRef<HTMLDivElement>(null);
     const previewContainerRef = useRef<HTMLDivElement>(null);
     const scaleWrapperRef = useRef<HTMLDivElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     
     // --- State Management ---
     const [activeTab, setActiveTab] = useState<PngSettingsTab>('content');
@@ -57,7 +52,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     };
 
     // --- Custom Hooks for complex logic ---
-    const { fontStatuses, loadFont } = useFontLoader(customFonts);
+    const { fontStatuses, loadFont } = useFontLoader();
     const propsForContent = useMemo(() => ({
         scheduleData, title: localTitle, calendarDays, currentDate,
         ...pngSettings,
@@ -84,22 +79,20 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     
     useEffect(() => {
         if (isOpen) {
-            const allFonts = [...FONT_OPTIONS, ...customFonts.map(cf => ({ id: cf.name, name: cf.name, urlValue: '' }))];
-            const selectedFontOption = allFonts.find(f => f.id === pngSettings.font);
+            const selectedFontOption = FONT_OPTIONS.find(f => f.id === pngSettings.font);
 
             if (selectedFontOption && (fontStatuses[pngSettings.font] || 'idle') === 'idle') {
                 loadFont(selectedFontOption).catch(e => console.error("Failed to preload selected font:", e));
             }
         }
-    }, [isOpen, pngSettings.font, fontStatuses, loadFont, customFonts]);
+    }, [isOpen, pngSettings.font, fontStatuses, loadFont]);
 
     // --- Event Handlers ---
     const handleFontSelect = useCallback(async (fontId: string) => {
         updateSetting('font', fontId);
 
         if ((fontStatuses[fontId] || 'idle') === 'idle') {
-            const allFonts = [...FONT_OPTIONS, ...customFonts.map(cf => ({ id: cf.name, name: cf.name, urlValue: '' }))];
-            const fontOption = allFonts.find(f => f.id === fontId);
+            const fontOption = FONT_OPTIONS.find(f => f.id === fontId);
             if(fontOption) {
                 try {
                     await loadFont(fontOption);
@@ -108,45 +101,8 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 }
             }
         }
-    }, [fontStatuses, loadFont, updateSetting, customFonts]);
+    }, [fontStatuses, loadFont, updateSetting]);
     
-    const handleCustomFontUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        if (customFonts.some(f => f.name === file.name)) {
-            alert('已存在同名字體！');
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const dataUrl = e.target?.result as string;
-            const newFont: CustomFont = { name: file.name, data: dataUrl };
-            const newCustomFonts = [...customFonts, newFont];
-            onCustomFontsChange(newCustomFonts);
-            handleFontSelect(newFont.name); // Select the new font immediately
-        };
-        reader.onerror = () => {
-            alert('讀取字體檔案失敗！');
-        };
-        reader.readAsDataURL(file);
-        
-        // Reset file input to allow uploading the same file again after deletion
-        if(event.target) {
-            event.target.value = '';
-        }
-    };
-
-    const handleCustomFontDelete = (fontNameToDelete: string) => {
-        const newCustomFonts = customFonts.filter(f => f.name !== fontNameToDelete);
-        onCustomFontsChange(newCustomFonts);
-        // If the deleted font was the selected one, select the default font
-        if (pngSettings.font === fontNameToDelete) {
-            updateSetting('font', FONT_OPTIONS[0].id);
-        }
-    };
-
     const handleStartExport = useCallback(async () => {
         const exportNode = exportRef.current;
         if (!exportNode || typeof htmlToImage === 'undefined') {
@@ -166,16 +122,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             // --- COMMON SETUP: Prepare font resources ---
             setLoadingMessage('準備資源...');
             const fontId = pngSettings.font;
-            const customFont = customFonts.find(cf => cf.name === fontId);
             let fontEmbedCSS: string;
 
-            if (customFont) {
-                fontEmbedCSS = embedCustomFontForExport(customFont);
-            } else {
-                const selectedFont = FONT_OPTIONS.find(f => f.id === fontId);
-                if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
-                fontEmbedCSS = await embedFontForExport(selectedFont);
-            }
+            const selectedFont = FONT_OPTIONS.find(f => f.id === fontId);
+            if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
+            fontEmbedCSS = await embedFontForExport(selectedFont);
             
             styleElement.textContent = fontEmbedCSS;
             exportNode.appendChild(styleElement);
@@ -215,7 +166,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             // Restore the removed font links to ensure the main UI is not broken.
             fontLinks.forEach(link => head.appendChild(link));
         }
-    }, [pngSettings.font, customFonts, propsForContent.bgColor]);
+    }, [pngSettings.font, propsForContent.bgColor]);
 
 
     const handleOpenInNewTab = useCallback(async () => {
@@ -272,13 +223,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
 
     return (
         <Modal isOpen={isOpen} onClose={isExporting ? () => {} : onClose} headerContent={header} footerContent={footer} modalClassName="xl:max-w-4xl">
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleCustomFontUpload}
-                accept=".ttf,.otf,.woff,.woff2"
-                style={{ display: 'none' }}
-            />
             <div
                 style={{ position: 'fixed', top: 0, left: -99999, pointerEvents: 'none', opacity: 0 }}
               >
@@ -329,9 +273,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                         fontStatuses={fontStatuses}
                         handleFontSelect={handleFontSelect}
                         loadFont={loadFont}
-                        customFonts={customFonts}
-                        onUploadClick={() => fileInputRef.current?.click()}
-                        onDeleteCustomFont={handleCustomFontDelete}
                       />
                     </div>
                 </div>

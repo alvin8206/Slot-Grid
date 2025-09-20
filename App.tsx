@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
-import type { ScheduleData, CalendarDay, Slot, DayData, PngSettingsState, TextExportSettingsState, CustomFont } from './types';
+import type { ScheduleData, CalendarDay, Slot, DayData, PngSettingsState, TextExportSettingsState } from './types';
 import { MONTH_NAMES, DAY_NAMES } from './constants';
 import { ChevronLeftIcon, ChevronRightIcon, CalendarIcon, EditIcon, TrashIcon, UserIcon, CheckIcon, SpinnerIcon } from './components/icons';
 import { auth, db, isFirebaseConfigured } from './firebaseClient';
@@ -82,7 +82,6 @@ const App: React.FC = () => {
 
     const [pngSettings, setPngSettings] = useState<PngSettingsState>(defaultPngSettings);
     const [textExportSettings, setTextExportSettings] = useState<TextExportSettingsState>(defaultTextExportSettings);
-    const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
     
     // NEW: Auth status state to prevent race conditions
     const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
@@ -150,7 +149,6 @@ const App: React.FC = () => {
                             setTitle(data.title || "可預約時段");
                             setTextExportSettings(prev => ({ ...prev, ...(data.textExportSettings || {}) }));
                             setPngSettings(prev => ({ ...prev, ...(data.pngSettings || {}) }));
-                            setCustomFonts(data.customFonts || []);
                         }
                     }
                 } catch (error) {
@@ -169,9 +167,6 @@ const App: React.FC = () => {
 
                     const localPngSettings = localStorage.getItem('pngSettings');
                     if (localPngSettings) setPngSettings(JSON.parse(localPngSettings));
-                    
-                    const localCustomFonts = localStorage.getItem('customFonts');
-                    if (localCustomFonts) setCustomFonts(JSON.parse(localCustomFonts));
                 } catch (error) {
                     console.error("Failed to parse local storage data:", error);
                     localStorage.clear();
@@ -187,7 +182,6 @@ const App: React.FC = () => {
         title: string;
         textExportSettings: TextExportSettingsState;
         pngSettings: PngSettingsState;
-        customFonts: CustomFont[];
     }>) => {
         const cleanUpdates = Object.fromEntries(
             Object.entries(updates).filter(([, value]) => value !== undefined)
@@ -202,14 +196,12 @@ const App: React.FC = () => {
         if ('title' in cleanUpdates) newState.title = cleanUpdates.title;
         if ('textExportSettings' in cleanUpdates) newState.textExportSettings = cleanUpdates.textExportSettings;
         if ('pngSettings' in cleanUpdates) newState.pngSettings = cleanUpdates.pngSettings;
-        if ('customFonts' in cleanUpdates) newState.customFonts = cleanUpdates.customFonts;
 
         // Eagerly update local state for responsiveness
         setScheduleData(prev => newState.scheduleData ?? prev);
         setTitle(prev => newState.title ?? prev);
         setTextExportSettings(prev => newState.textExportSettings ?? prev);
         setPngSettings(prev => newState.pngSettings ?? prev);
-        setCustomFonts(prev => newState.customFonts ?? prev);
 
         if (docRef) {
             const firestoreUpdates: { [key: string]: any } = {};
@@ -217,7 +209,6 @@ const App: React.FC = () => {
             if ('title' in cleanUpdates) firestoreUpdates.title = cleanUpdates.title;
             if ('textExportSettings' in cleanUpdates) firestoreUpdates.textExportSettings = cleanUpdates.textExportSettings;
             if ('pngSettings' in cleanUpdates) firestoreUpdates.pngSettings = cleanUpdates.pngSettings;
-            if ('customFonts' in cleanUpdates) firestoreUpdates.customFonts = cleanUpdates.customFonts;
 
             docRef.set(firestoreUpdates, { merge: true }) // Use set with merge to be safer
                 .catch((error: any) => console.error("Error saving data to Firestore:", error));
@@ -226,7 +217,6 @@ const App: React.FC = () => {
             if ('title' in cleanUpdates) localStorage.setItem('title', cleanUpdates.title!);
             if ('textExportSettings' in cleanUpdates) localStorage.setItem('textExportSettings', JSON.stringify(cleanUpdates.textExportSettings!));
             if ('pngSettings' in cleanUpdates) localStorage.setItem('pngSettings', JSON.stringify(cleanUpdates.pngSettings!));
-            if ('customFonts' in cleanUpdates) localStorage.setItem('customFonts', JSON.stringify(cleanUpdates.customFonts!));
         }
     }, [docRef]);
 
@@ -572,8 +562,6 @@ const App: React.FC = () => {
                 loginPromptContent={loginPromptContent}
                 pngSettings={pngSettings}
                 setPngSettings={setPngSettings}
-                customFonts={customFonts}
-                onCustomFontsChange={(fonts) => updateAndSaveState({ customFonts: fonts })}
             />
 
             <TextExportModal

@@ -3,6 +3,7 @@ import type { ScheduleData, TextExportSettingsState } from '../types';
 import { MONTH_NAMES, DAY_NAMES, MONTH_NAMES_EN, DAY_NAMES_EN } from '../constants';
 import Modal from './Modal';
 import { getEffectiveStatus, applyStrikethrough, DAY_STATUS_TEXT_MAP } from '../utils';
+import { LightbulbIcon } from './icons';
 
 interface TextExportModalProps {
     isOpen: boolean;
@@ -18,8 +19,8 @@ interface TextExportModalProps {
 const SEPARATOR_OPTIONS = [
     { display: ',', value: ', ' },
     { display: '、', value: '、' },
-    { display: '・', value: '・' },
-    { display: '▪︎', value: ' ▪︎ ' },
+    { display: '，', value: '・' },
+    { display: '⟡', value: ' ⟡ ' },
     { display: '-', value: ' - ' },
     { display: '｜', value: '｜' },
     { display: '／', value: '／' },
@@ -215,13 +216,29 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
     return (
         <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer}>
             <div className="space-y-6">
-                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                    <textarea 
-                        readOnly 
-                        value={generatedText}
-                        className="w-full h-48 md:h-56 bg-transparent resize-none border-none focus:ring-0 text-sm text-gray-800 dark:text-gray-200"
-                    />
+                <div>
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
+                        <textarea 
+                            readOnly 
+                            value={generatedText}
+                            className="w-full h-48 md:h-56 bg-transparent resize-none border-none focus:ring-0 text-sm text-gray-800 dark:text-gray-200"
+                        />
+                    </div>
+                    {layout === 'compact' && (
+                        <div className="mt-4 flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/50">
+                            <LightbulbIcon className="w-5 h-5 text-blue-500 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                            <div className="text-xs text-blue-800 dark:text-blue-300">
+                                <p className="font-semibold">Instagram 限時動態對齊提示：</p>
+                                <p className="mt-1">
+                                    建議在 IG 限動的字體選項中，選擇
+                                    <strong className="font-bold">「打字機 (Typewriter)」</strong>或
+                                    <strong className="font-bold">「經典 (Editor)」</strong>才能完美對齊。
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
+
 
                 <div className="space-y-2">
                     <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">排版</label>

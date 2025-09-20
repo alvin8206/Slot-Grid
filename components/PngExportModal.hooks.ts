@@ -1,17 +1,14 @@
 // components/PngExportModal.hooks.ts
 import { useState, useCallback, useLayoutEffect, useRef } from 'react';
 import { FontOption, FontStatus } from './PngExportModal.helpers';
-import type { CustomFont } from '../types';
 import { getPrimaryFamily } from '../fonts';
 
 /**
  * Hook to manage loading and status tracking of web fonts.
- * This version supports both Google Fonts and custom uploaded fonts.
  */
-export const useFontLoader = (customFonts: CustomFont[]) => {
+export const useFontLoader = () => {
     const [fontStatuses, setFontStatuses] = useState<Record<string, FontStatus>>({});
     const addedLinks = useRef(new Set<string>());
-    const addedCustomStyles = useRef(new Set<string>());
 
     const loadFont = useCallback(async (fontOption: FontOption): Promise<void> => {
         const { id, urlValue, name } = fontOption;
@@ -20,44 +17,25 @@ export const useFontLoader = (customFonts: CustomFont[]) => {
             return;
         }
 
-        const customFont = customFonts.find(cf => cf.name === id);
-
         try {
             setFontStatuses(prev => ({ ...prev, [id]: 'loading' }));
             
             let primaryFontFamily = getPrimaryFamily(id);
 
-            // Step 1: Ensure the font stylesheet is in the document.
-            if (customFont) {
-                // Handle custom uploaded font
-                if (!addedCustomStyles.current.has(id)) {
-                    const style = document.createElement('style');
-                    style.id = `font-style-${id}`;
-                    style.textContent = `
-                        @font-face {
-                            font-family: "${primaryFontFamily}";
-                            src: url(${customFont.data});
-                        }
-                    `;
-                    document.head.appendChild(style);
-                    addedCustomStyles.current.add(id);
-                }
-            } else {
-                // Handle Google Font
-                if (!addedLinks.current.has(id)) {
-                    await new Promise<void>((resolve, reject) => {
-                        const link = document.createElement('link');
-                        link.rel = 'stylesheet';
-                        link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap`;
-                        link.onload = () => resolve();
-                        link.onerror = (e) => {
-                            console.error(`Font stylesheet failed to load for: ${name}`, e);
-                            reject(new Error(`Stylesheet load error for ${name}`));
-                        };
-                        document.head.appendChild(link);
-                    });
-                    addedLinks.current.add(id);
-                }
+            // Step 1: Ensure the font stylesheet is in the document for Google Fonts
+            if (!addedLinks.current.has(id)) {
+                await new Promise<void>((resolve, reject) => {
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = `https://fonts.googleapis.com/css2?family=${urlValue.replace(/ /g, '+')}&display=swap`;
+                    link.onload = () => resolve();
+                    link.onerror = (e) => {
+                        console.error(`Font stylesheet failed to load for: ${name}`, e);
+                        reject(new Error(`Stylesheet load error for ${name}`));
+                    };
+                    document.head.appendChild(link);
+                });
+                addedLinks.current.add(id);
             }
             
             // Step 2: Use the deterministic `document.fonts.load()` API.
@@ -69,7 +47,7 @@ export const useFontLoader = (customFonts: CustomFont[]) => {
             setFontStatuses(prev => ({ ...prev, [id]: 'idle' }));
             throw error;
         }
-    }, [fontStatuses, customFonts]);
+    }, [fontStatuses]);
 
     return { fontStatuses, loadFont };
 };

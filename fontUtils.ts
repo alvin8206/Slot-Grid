@@ -1,6 +1,5 @@
 // utils/fontUtils.ts
 import { getPrimaryFamily } from './fonts';
-import type { CustomFont } from '../types';
 
 interface FontOption {
   id: string;
@@ -120,22 +119,4 @@ export function embedFontForExport(fontOption: FontOption): Promise<string> {
 
   fontCssCache.set(cacheKey, promise);
   return promise;
-}
-
-/**
- * NEW: Generates an @font-face CSS rule for a user-uploaded custom font.
- * This is a synchronous operation as the font data is already available in Base64.
- * @param customFont The custom font object containing its name and Base64 data.
- * @returns A string containing the complete @font-face CSS rule.
- */
-export function embedCustomFontForExport(customFont: CustomFont): string {
-  // Use the font's name (which is the filename) as the font-family.
-  // This ensures a unique and consistent identifier.
-  const fontFamily = customFont.name;
-  return `
-    @font-face {
-      font-family: "${fontFamily}";
-      src: url(${customFont.data});
-    }
-  `;
 }
