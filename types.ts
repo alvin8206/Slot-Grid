@@ -1,3 +1,5 @@
+import React from 'react';
+
 // types.ts
 
 export interface Slot {
@@ -6,7 +8,7 @@ export interface Slot {
 }
 
 // NEW: Define the status for a whole day
-export type DayStatus = 'available' | 'dayOff' | 'closed' | 'fullyBooked';
+export type DayStatus = 'available' | 'dayOff' | 'closed' | 'fullyBooked' | 'training';
 
 // NEW: Define the data structure for a single day
 export interface DayData {
@@ -54,6 +56,7 @@ export interface PngSettingsState {
   dayOffColor: string;
   closedColor: string;
   fullyBookedColor: string;
+  trainingColor: string;
   slotLayout: 'vertical' | 'horizontal-wrap';
 }
 
@@ -67,6 +70,8 @@ export interface TextExportSettingsState {
   showDayOfWeek: boolean;
   showFullyBooked: boolean;
   showDayOff: boolean;
+  showTraining: boolean;
   bookedStyle: 'strikethrough' | 'annotation';
   slotSeparator: string;
+  dateFilter: 'all' | 'weekdays' | 'weekends';
 }
