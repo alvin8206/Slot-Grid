@@ -36,6 +36,22 @@ export const DAY_STATUS_TEXT_MAP: Record<DayStatus | 'empty', string> = {
   empty: '' // Empty status should not produce text
 };
 
+export const DAY_STATUS_TEXT_MAP_EN: Record<DayStatus | 'empty', string> = {
+  available: 'Available',
+  dayOff: 'Day Off',
+  closed: 'Closed',
+  fullyBooked: 'Full',
+  empty: ''
+};
+
+export const getStatusText = (status: DayStatus | 'empty', language: 'zh' | 'en'): string => {
+    if (language === 'en') {
+        return DAY_STATUS_TEXT_MAP_EN[status];
+    }
+    return DAY_STATUS_TEXT_MAP[status];
+};
+
+
 export const formatDateKey = (date: Date): string => {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0); // Normalize to midnight

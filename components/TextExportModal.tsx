@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { ScheduleData, TextExportSettingsState } from '../types';
 import { MONTH_NAMES, DAY_NAMES, MONTH_NAMES_EN, DAY_NAMES_EN } from '../constants';
 import Modal from './Modal';
-import { getEffectiveStatus, applyStrikethrough, DAY_STATUS_TEXT_MAP } from '../utils';
+import { getEffectiveStatus, applyStrikethrough, getStatusText } from '../utils';
 import { LightbulbIcon } from './icons';
 
 interface TextExportModalProps {
@@ -107,7 +107,7 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                 }
 
                 if (effectiveStatus !== 'available') {
-                    return { datePart: finalDatePart, dayOfWeekPart, content: DAY_STATUS_TEXT_MAP[effectiveStatus], type: 'status' as const };
+                    return { datePart: finalDatePart, dayOfWeekPart, content: getStatusText(effectiveStatus, language), type: 'status' as const };
                 }
 
                 const relevantSlots = dayData?.slots || [];

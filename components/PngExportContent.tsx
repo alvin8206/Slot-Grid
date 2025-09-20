@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import type { ScheduleData, CalendarDay, PngSettingsState, DayStatus } from '../types';
 import { MONTH_NAMES, DAY_NAMES, MONTH_NAMES_EN, DAY_NAMES_EN } from '../constants';
-import { getEffectiveStatus, DAY_STATUS_TEXT_MAP, formatDateKey } from '../utils';
+import { getEffectiveStatus, getStatusText, formatDateKey } from '../utils';
 
 export interface PngExportContentProps extends PngSettingsState {
     scheduleData: ScheduleData;
@@ -142,7 +142,7 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                 </div>
                                 <div className="col-span-2 flex flex-wrap gap-x-3 gap-y-1">
                                     {effectiveStatus !== 'available' ? (
-                                        <span className="font-bold" style={{ color: getStatusColor(effectiveStatus) }}>{DAY_STATUS_TEXT_MAP[effectiveStatus]}</span>
+                                        <span className="font-bold" style={{ color: getStatusColor(effectiveStatus) }}>{getStatusText(effectiveStatus, language)}</span>
                                     ) : (
                                         (dayData?.slots && (showBookedSlots ? dayData.slots : dayData.slots.filter(s => s.state === 'available')) || []).map(slot => {
                                             const liStyle: React.CSSProperties = { color: textColor };
@@ -184,7 +184,7 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                     </p>
                                     {day.isCurrentMonth && effectiveStatus !== 'available' && effectiveStatus !== 'empty' && (
                                         <div className="flex-grow flex items-center justify-center">
-                                            <span className="font-bold" style={{ fontSize: '1.1em', color: getStatusColor(effectiveStatus) }}>{DAY_STATUS_TEXT_MAP[effectiveStatus]}</span>
+                                            <span className="font-bold" style={{ fontSize: '1.1em', color: getStatusColor(effectiveStatus) }}>{getStatusText(effectiveStatus, language)}</span>
                                         </div>
                                     )}
                                     {day.isCurrentMonth && effectiveStatus === 'available' && dayData?.slots && dayData.slots.length > 0 && (
