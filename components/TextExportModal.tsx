@@ -1,4 +1,3 @@
-// components/TextExportModal.tsx
 import React, { useState, useMemo } from 'react';
 import type { ScheduleData, TextExportSettingsState } from '../types';
 import { MONTH_NAMES, DAY_NAMES, MONTH_NAMES_EN, DAY_NAMES_EN } from '../constants';
@@ -16,6 +15,16 @@ interface TextExportModalProps {
     setTextExportSettings: React.Dispatch<React.SetStateAction<TextExportSettingsState>>;
 }
 
+const SEPARATOR_OPTIONS = [
+    { display: ',', value: ', ' },
+    { display: '、', value: '、' },
+    { display: '・', value: '・' },
+    { display: '▪︎', value: ' ▪︎ ' },
+    { display: '-', value: ' - ' },
+    { display: '｜', value: '｜' },
+    { display: '／', value: '／' },
+];
+
 const TextExportModal: React.FC<TextExportModalProps> = ({
     isOpen,
     onClose,
@@ -30,7 +39,8 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
 
     const {
         layout, language, includeTitle, includeYear, showMonth,
-        showBooked, showDayOfWeek, showFullyBooked, showDayOff, bookedStyle
+        showBooked, showDayOfWeek, showFullyBooked, showDayOff, bookedStyle,
+        slotSeparator
     } = textExportSettings;
 
     const updateSetting = <K extends keyof TextExportSettingsState>(key: K, value: TextExportSettingsState[K]) => {
@@ -38,10 +48,6 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
     };
     
     const generatedText = useMemo(() => {
-        type TextExportLine = 
-            | { prefix: string; content: string; type: 'status' }
-            | { prefix: string; content: string[]; type: 'slots' };
-        
         let text = '';
         if (includeTitle) {
             text += `${title}\n\n`;
@@ -56,6 +62,20 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                 return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
             })
             .sort((a, b) => a.localeCompare(b));
+            
+        // FIX: Define ExportLine as a discriminated union to correctly correlate 'type' and the type of 'content'.
+        // This resolves the type predicate error by ensuring the type is specific.
+        type ExportLine = {
+            datePart: string;
+            dayOfWeekPart: string;
+            content: string;
+            type: 'status';
+        } | {
+            datePart: string;
+            dayOfWeekPart: string;
+            content: string[];
+            type: 'slots';
+        };
 
         const linesData = sortedDates
             .map(dateKey => {
@@ -71,21 +91,22 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                 const month = (date.getMonth() + 1).toString();
                 const day = date.getDate().toString();
 
-                const datePart = showMonth ? `${month}/${day}` : day;
-                let datePrefix = includeYear ? `${year}/${datePart}` : datePart;
+                const datePartStr = showMonth ? `${month}/${day}` : day;
+                const finalDatePart = includeYear ? `${year}/${datePartStr}` : datePartStr;
                 
+                let dayOfWeekPart = '';
                 if (showDayOfWeek) {
                     if (language === 'zh') {
                         const dayOfWeek = DAY_NAMES[date.getDay()];
-                        datePrefix += `（${dayOfWeek}）`;
+                        dayOfWeekPart = `（${dayOfWeek}）`;
                     } else {
                         const dayOfWeek = DAY_NAMES_EN[date.getDay()];
-                        datePrefix += ` (${dayOfWeek})`;
+                        dayOfWeekPart = `(${dayOfWeek})`;
                     }
                 }
 
                 if (effectiveStatus !== 'available') {
-                    return { prefix: datePrefix, content: DAY_STATUS_TEXT_MAP[effectiveStatus], type: 'status' as const };
+                    return { datePart: finalDatePart, dayOfWeekPart, content: DAY_STATUS_TEXT_MAP[effectiveStatus], type: 'status' as const };
                 }
 
                 const relevantSlots = dayData?.slots || [];
@@ -103,9 +124,9 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                     return slot.time;
                 });
 
-                return { prefix: datePrefix, content: slotsToDisplay, type: 'slots' as const };
+                return { datePart: finalDatePart, dayOfWeekPart, content: slotsToDisplay, type: 'slots' as const };
             })
-            .filter((line): line is TextExportLine => line !== null);
+            .filter((line): line is ExportLine => line !== null);
 
         if (linesData.length === 0) {
             if (includeTitle) {
@@ -127,28 +148,39 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
         };
 
         if (layout === 'compact') {
-            const linesWithWidth = linesData.map(line => ({ ...line, width: getTextWidth(line.prefix) }));
-            const maxPrefixWidth = Math.max(0, ...linesWithWidth.map(line => line.width));
+            const maxDateWidth = Math.max(0, ...linesData.map(line => getTextWidth(line.datePart)));
+            const maxDayOfWeekWidth = Math.max(0, ...linesData.map(line => getTextWidth(line.dayOfWeekPart)));
             
-            const textContent = linesWithWidth.map(line => {
-                const contentStr = Array.isArray(line.content) ? line.content.join(', ') : line.content;
-                const padding = ' '.repeat(Math.max(0, maxPrefixWidth - line.width));
-                return `${line.prefix}${padding}  ${contentStr}`;
+            const textContent = linesData.map(line => {
+                const contentStr = Array.isArray(line.content) ? line.content.join(slotSeparator) : line.content;
+
+                const datePadding = ' '.repeat(Math.max(0, maxDateWidth - getTextWidth(line.datePart)));
+                const paddedDatePart = `${line.datePart}${datePadding}`;
+                
+                if (showDayOfWeek) {
+                    const dayOfWeekPadding = ' '.repeat(Math.max(0, maxDayOfWeekWidth - getTextWidth(line.dayOfWeekPart)));
+                    const paddedDayOfWeekPart = `${line.dayOfWeekPart}${dayOfWeekPadding}`;
+                    return `${paddedDatePart} ${paddedDayOfWeekPart}  ${contentStr}`;
+                } else {
+                    return `${paddedDatePart}  ${contentStr}`;
+                }
             }).join('\n');
             text += textContent;
         } else if (layout === 'double-row') {
             const textContent = linesData.map(line => {
-                const contentStr = Array.isArray(line.content) ? line.content.join(', ') : line.content;
-                return `${line.prefix}\n${contentStr}`;
+                const prefix = line.dayOfWeekPart ? `${line.datePart}${line.dayOfWeekPart}` : line.datePart;
+                const contentStr = Array.isArray(line.content) ? line.content.join(slotSeparator) : line.content;
+                return `${prefix}\n${contentStr}`;
             }).join('\n\n');
             text += textContent;
         } else { // default layout
             const textContent = linesData.map(line => {
+                const prefix = line.dayOfWeekPart ? `${line.datePart}${line.dayOfWeekPart}` : line.datePart;
                 if (line.type === 'slots') {
                     const slotsStr = line.content.map(s => s).join('\n');
-                    return `${line.prefix}\n${slotsStr}`;
+                    return `${prefix}\n${slotsStr}`;
                 }
-                return `${line.prefix}: ${line.content}`;
+                return `${prefix}: ${line.content}`;
             }).join('\n\n');
             text += textContent;
         }
@@ -197,6 +229,21 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                         <button onClick={() => updateSetting('layout', 'default')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'default' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>垂直</button>
                         <button onClick={() => updateSetting('layout', 'compact')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'compact' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>水平</button>
                         <button onClick={() => updateSetting('layout', 'double-row')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'double-row' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>雙排</button>
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">時段分隔符</label>
+                    <div className="grid grid-cols-7 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                        {SEPARATOR_OPTIONS.map(opt => (
+                            <button 
+                                key={opt.value}
+                                onClick={() => updateSetting('slotSeparator', opt.value)} 
+                                className={`py-2 rounded-lg transition-all text-sm font-medium ${slotSeparator === opt.value ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}
+                            >
+                                {opt.display}
+                            </button>
+                        ))}
                     </div>
                 </div>
 

@@ -59,6 +59,7 @@ const defaultTextExportSettings: TextExportSettingsState = {
     showFullyBooked: false,
     showDayOff: false,
     bookedStyle: 'strikethrough',
+    slotSeparator: ', ',
 };
 
 

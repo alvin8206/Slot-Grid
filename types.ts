@@ -73,4 +73,5 @@ export interface TextExportSettingsState {
   showFullyBooked: boolean;
   showDayOff: boolean;
   bookedStyle: 'strikethrough' | 'annotation';
+  slotSeparator: string;
 }
