@@ -201,7 +201,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             </div>
         </>
     );
-
+    
     const TabButton: React.FC<{ tab: PngSettingsTab, label: string; disabled?: boolean }> = ({ tab, label, disabled }) => (
       <button 
         onClick={() => !disabled && setActiveTab(tab)} 
@@ -247,15 +247,10 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                         </div>
                     </div>
                     <div className="w-full lg:w-1/2 space-y-4">
-                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                          <div className="space-y-3">
-                              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">顯示範圍</h3>
-                              <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                                  <ViewModeButton mode="month" label="完整月曆"/>
-                                  <ViewModeButton mode="remaining" label="剩餘月份"/>
-                                  <ViewModeButton mode="list" label="清單模式"/>
-                              </div>
-                          </div>
+                        <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                            <ViewModeButton mode="month" label="完整月曆"/>
+                            <ViewModeButton mode="remaining" label="剩餘月份"/>
+                            <ViewModeButton mode="list" label="清單模式"/>
                         </div>
 
                       <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
