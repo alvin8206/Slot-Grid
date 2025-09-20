@@ -233,10 +233,11 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
     <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer}>
         <div className="mb-4">
             <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">設定整日狀態</h3>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <StatusButton status="dayOff" label="設為休假" />
                 <StatusButton status="closed" label="設為公休" />
                 <StatusButton status="fullyBooked" label="設為已額滿" />
+                <StatusButton status="training" label="設為進修" />
             </div>
         </div>
 
