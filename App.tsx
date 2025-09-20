@@ -45,6 +45,7 @@ const defaultPngSettings: PngSettingsState = {
     dayOffColor: '#6B7280',
     closedColor: '#6B7280',
     fullyBookedColor: '#EF4444',
+    trainingColor: '#3B82F6',
     slotLayout: 'vertical',
 };
 
@@ -58,8 +59,10 @@ const defaultTextExportSettings: TextExportSettingsState = {
     showDayOfWeek: true,
     showFullyBooked: false,
     showDayOff: false,
+    showTraining: false,
     bookedStyle: 'strikethrough',
     slotSeparator: ', ',
+    dateFilter: 'all',
 };
 
 
