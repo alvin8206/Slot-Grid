@@ -46,7 +46,6 @@ const defaultPngSettings: PngSettingsState = {
     closedColor: '#6B7280',
     fullyBookedColor: '#EF4444',
     trainingColor: '#3B82F6',
-    slotLayout: 'vertical',
 };
 
 const defaultTextExportSettings: TextExportSettingsState = {

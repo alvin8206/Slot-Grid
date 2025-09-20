@@ -274,7 +274,7 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({
         exportViewMode, pngStyle, bgColor, textColor, borderColor, blockColor, showShadow,
         showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness,
         font, language, horizontalGap, verticalGap, titleAlign,
-        dayOffColor, closedColor, fullyBookedColor, trainingColor, slotLayout, fontScale
+        dayOffColor, closedColor, fullyBookedColor, trainingColor, fontScale
     } = pngSettings;
     
     const handleStyleChange = (style: PngStyle) => {
@@ -470,16 +470,6 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({
                       </div>
                  </SettingsSection>
               </SettingsCard>
-              {exportViewMode !== 'list' && (
-                  <SettingsCard>
-                      <SettingsSection title="時段排版">
-                          <div className="grid grid-cols-2 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                              <button onClick={() => updateSetting('slotLayout', 'vertical')} className={`py-2 rounded-lg transition-all text-sm font-medium ${slotLayout === 'vertical' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>垂直排列</button>
-                              <button onClick={() => updateSetting('slotLayout', 'horizontal-wrap')} className={`py-2 rounded-lg transition-all text-sm font-medium ${slotLayout === 'horizontal-wrap' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>水平換行</button>
-                          </div>
-                      </SettingsSection>
-                  </SettingsCard>
-              )}
               <SettingsCard>
                  <SettingsSection title="字體縮放">
                       <label className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mb-2">

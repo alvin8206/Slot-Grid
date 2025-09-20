@@ -4,7 +4,7 @@ import type { ScheduleData, CalendarDay, PngSettingsState, DayStatus } from '../
 import { MONTH_NAMES, DAY_NAMES, MONTH_NAMES_EN, DAY_NAMES_EN } from '../constants';
 import { getEffectiveStatus, getStatusText, formatDateKey } from '../utils';
 
-export interface PngExportContentProps extends PngSettingsState {
+export interface PngExportContentProps extends Omit<PngSettingsState, 'slotLayout'> {
     scheduleData: ScheduleData;
     title: string;
     calendarDays: CalendarDay[];
@@ -12,7 +12,7 @@ export interface PngExportContentProps extends PngSettingsState {
 }
 
 const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>(({
-    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign, dayOffColor, closedColor, fullyBookedColor, trainingColor, slotLayout
+    scheduleData, title, currentDate, calendarDays, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, horizontalGap, verticalGap, showShadow, exportViewMode, titleAlign, dayOffColor, closedColor, fullyBookedColor, trainingColor
 }, ref) => {
     
     const monthNames = language === 'zh' ? MONTH_NAMES : MONTH_NAMES_EN;
@@ -192,30 +192,6 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                         (() => {
                                             const finalSlots = showBookedSlots ? dayData.slots : dayData.slots.filter(s => s.state === 'available');
                                             if (finalSlots.length === 0) return null;
-
-                                            if (slotLayout === 'horizontal-wrap') {
-                                                return (
-                                                    <div className="mt-1 text-center" style={{ lineHeight: '1.6' }}>
-                                                        {finalSlots.map((slot, index) => {
-                                                            const spanStyle: React.CSSProperties = { color: textColor, display: 'inline-block' };
-                                                            if (slot.state === 'booked') {
-                                                                if (bookedStyle === 'fade') { spanStyle.opacity = 0.3; }
-                                                                else if (bookedStyle === 'strikethrough') {
-                                                                    spanStyle.textDecoration = 'line-through';
-                                                                    spanStyle.textDecorationColor = strikethroughColor;
-                                                                    spanStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
-                                                                }
-                                                            }
-                                                            return (
-                                                                <React.Fragment key={slot.time}>
-                                                                    <span style={spanStyle}>{slot.time}</span>
-                                                                    {index < finalSlots.length - 1 && <span style={{ color: textColor, opacity: 0.8, margin: '0 0.2em' }}>／</span>}
-                                                                </React.Fragment>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )
-                                            }
                                             
                                             return (
                                                 <ul className="space-y-1 mt-1 text-center">

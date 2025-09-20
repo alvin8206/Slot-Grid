@@ -57,7 +57,6 @@ export interface PngSettingsState {
   closedColor: string;
   fullyBookedColor: string;
   trainingColor: string;
-  slotLayout: 'vertical' | 'horizontal-wrap';
 }
 
 export interface TextExportSettingsState {
