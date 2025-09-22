@@ -47,8 +47,11 @@ export const useFontLoader = () => {
                 addedLinks.current.add(id);
             }
             
-            // Step 2: Use the deterministic `document.fonts.load()` API.
-            await document.fonts.load(`1em "${primaryFontFamily}"`);
+            // Step 2: Use the deterministic `document.fonts.load()` API for all required weights.
+            const loadPromises = fontOption.weights.map(weight => 
+                document.fonts.load(`${weight} 1em "${primaryFontFamily}"`)
+            );
+            await Promise.all(loadPromises);
 
             setFontStatuses(prev => ({ ...prev, [id]: 'loaded' }));
         } catch (error) {

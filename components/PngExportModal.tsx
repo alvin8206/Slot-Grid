@@ -181,10 +181,13 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     
             // --- STEP 2: GUARANTEE FONT IS READY ---
             // This is the crucial step to fix the mobile race condition.
-            // We explicitly wait for the browser to confirm the font is loaded and ready for rendering.
+            // We explicitly wait for the browser to confirm all required font weights are loaded.
             setLoadingMessage('同步字體引擎...');
             const primaryFontFamily = getPrimaryFamily(selectedFont.id);
-            await document.fonts.load(`1em "${primaryFontFamily}"`);
+            const loadPromises = selectedFont.weights.map(weight =>
+                document.fonts.load(`${weight} 1em "${primaryFontFamily}"`)
+            );
+            await Promise.all(loadPromises);
     
             // --- STEP 3: THE PRIMING RENDER ---
             setLoadingMessage('正在準備引擎...');
