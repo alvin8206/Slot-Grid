@@ -10,6 +10,7 @@ import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colorToRgba } from '../utils';
 import type { WeekStartDay } from '../App';
+import { getPrimaryFamily } from '../fonts';
 
 // The htmlToImage library is loaded via CDN and available on the window object.
 declare const htmlToImage: any;
@@ -150,13 +151,18 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
     
         setExportStage('generating_image');
+        // Use a more specific ID for the temporary style to avoid potential conflicts.
+        const tempStyleId = `temp-font-embed-style-${Date.now()}`;
         const style = document.createElement('style');
+        style.id = tempStyleId;
+
         const linksToRemove: HTMLLinkElement[] = [];
     
         try {
-            // --- FIX: Temporarily remove all Google Font <link> tags from the document head ---
-            // This is the most reliable way to prevent html-to-image from trying to
-            // read their cross-origin cssRules, which causes a security error.
+            // --- STEP 1: PREPARE FONT & ENVIRONMENT ---
+            setLoadingMessage('準備資源...');
+    
+            // Temporarily remove all Google Font <link> tags to avoid CORS issues.
             document.querySelectorAll('link[href*="fonts.googleapis.com"]').forEach(linkNode => {
                 const linkEl = linkNode as HTMLLinkElement;
                 if (document.head.contains(linkEl)) {
@@ -164,52 +170,44 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                     linksToRemove.push(linkEl);
                 }
             });
-
-            // --- COMMON SETUP: Prepare font resources ---
-            setLoadingMessage('準備資源...');
+    
             const fontId = pngSettings.font;
             const selectedFont = FONT_OPTIONS.find(f => f.id === fontId);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
     
             const fontEmbedCSS = await embedFontForExport(selectedFont);
-    
-            // Inject style tag directly into the export node for better compatibility
-            style.id = 'temp-font-embed-style';
             style.innerHTML = fontEmbedCSS;
-            exportNode.prepend(style);
+            document.head.appendChild(style);
     
-            const filter = (node: HTMLElement) => {
-                // This filter is now mostly redundant but kept as a safeguard.
-                if (node.tagName === 'LINK' && (node as HTMLLinkElement).href.includes('fonts.googleapis.com')) {
-                    return false;
-                }
-                return true;
-            };
+            // --- STEP 2: GUARANTEE FONT IS READY ---
+            // This is the crucial step to fix the mobile race condition.
+            // We explicitly wait for the browser to confirm the font is loaded and ready for rendering.
+            setLoadingMessage('同步字體引擎...');
+            const primaryFontFamily = getPrimaryFamily(selectedFont.id);
+            await document.fonts.load(`1em "${primaryFontFamily}"`);
     
+            // --- STEP 3: THE PRIMING RENDER ---
+            setLoadingMessage('正在準備引擎...');
             const fetchOptions = {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                 }
             };
 
-            // --- STAGE 1: THE PRIMING RENDER ---
-            setLoadingMessage('正在準備引擎...');
             try {
                 await htmlToImage.toPng(exportNode, {
                     pixelRatio: 0.01,
                     quality: 0.01,
-                    filter: filter,
                     fetchRequestInit: fetchOptions,
                 });
             } catch (primingError) {
                 console.log('Priming render failed as expected, continuing...', primingError);
             }
-
-            // FIX: Add a small delay to ensure mobile browsers have time to process the font
-            // after the priming render. This is a crucial step for reliability on some devices.
+    
+            // A small delay remains as a final safeguard for the most stubborn mobile browsers.
             await new Promise(resolve => setTimeout(resolve, 50));
     
-            // --- STAGE 2: THE PRODUCTION RENDER ---
+            // --- STEP 4: THE PRODUCTION RENDER ---
             setLoadingMessage('正在生成圖片...');
             const bgColorRgba = colorToRgba(propsForContent.bgColor);
             const finalBgColor = bgColorRgba.a < 0.01 ? null : `rgba(${bgColorRgba.r}, ${bgColorRgba.g}, ${bgColorRgba.b}, ${bgColorRgba.a})`;
@@ -218,7 +216,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 backgroundColor: finalBgColor,
                 quality: 1.0,
                 pixelRatio: 2,
-                filter: filter,
                 fetchRequestInit: fetchOptions,
             });
     
@@ -230,11 +227,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         } finally {
-            // --- CLEANUP ---
-            if (style.parentNode === exportNode) {
-                exportNode.removeChild(style);
+            // --- STEP 5: CLEANUP ---
+            const tempStyleElement = document.getElementById(tempStyleId);
+            if (tempStyleElement) {
+                document.head.removeChild(tempStyleElement);
             }
-            // --- FIX: Add the removed <link> tags back to the document head ---
             linksToRemove.forEach(linkEl => document.head.appendChild(linkEl));
         }
     }, [pngSettings.font, propsForContent.bgColor]);
