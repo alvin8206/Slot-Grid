@@ -163,9 +163,12 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
     
         setExportStage('generating_image');
+        
         const linksToRemove: HTMLLinkElement[] = [];
+        const styleNodeToAdd: HTMLStyleElement | null = document.createElement('style');
     
         try {
+            // Step 1: Temporarily remove Google Fonts links to prevent CORS conflicts
             setLoadingMessage('準備資源...');
             document.querySelectorAll('link[href*="fonts.googleapis.com"]').forEach(linkNode => {
                 const linkEl = linkNode as HTMLLinkElement;
@@ -175,44 +178,38 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 }
             });
     
+            // Step 2: Get the chosen font and its Base64 CSS
             const fontId = pngSettings.font;
             const selectedFont = FONT_OPTIONS.find(f => f.id === fontId);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
     
-            // Generate the @font-face CSS with Base64 data, but don't inject it into the DOM.
             const fontEmbedCSS = await embedFontForExport(selectedFont);
+            
+            // Step 3: Inject the Base64 CSS directly into the document head
+            styleNodeToAdd.id = `dynamic-font-style-for-export-${Date.now()}`;
+            styleNodeToAdd.appendChild(document.createTextNode(fontEmbedCSS));
+            document.head.appendChild(styleNodeToAdd);
     
+            // Step 4: Wait for the browser to acknowledge and load the injected font
             setLoadingMessage('同步字體引擎...');
-            // We still await document.fonts.load to ensure the font is ready for the preview render.
             const primaryFontFamily = selectedFont.familyName;
             const loadPromises = selectedFont.weights.map(weight =>
                 document.fonts.load(`${weight} 1em "${primaryFontFamily}"`)
             );
             await Promise.all(loadPromises);
     
-            setLoadingMessage('準備引擎...');
-            const fetchOptions = {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                }
-            };
-
-            // NEW: Define a common options object, passing the font CSS directly to the library.
-            const commonExportOptions = {
-                fetchRequestInit: fetchOptions,
-                fontEmbedCSS: fontEmbedCSS, // The definitive fix!
-            };
-            
-            setLoadingMessage('繪製預覽...');
+            // Step 5: Wait for the browser to complete a paint cycle
+            setLoadingMessage('等待瀏覽器繪製...');
             await yieldToBrowser();
 
+            // Step 6: Force a reflow to ensure styles are applied before cloning
             setLoadingMessage('強制同步畫面...');
-            const _ = exportNode.offsetHeight; // Force reflow before cloning.
+            const _ = exportNode.offsetHeight;
 
+            // Step 7: "Priming" render to warm up html-to-image
+            setLoadingMessage('準備引擎...');
             try {
-                // "Priming" render with the dedicated font option.
                 await htmlToImage.toPng(exportNode, {
-                    ...commonExportOptions,
                     pixelRatio: 0.01,
                     quality: 0.01,
                 });
@@ -220,13 +217,12 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 console.log('Priming render failed as expected, continuing...', primingError);
             }
     
+            // Step 8: Final high-quality render
             setLoadingMessage('正在生成圖片...');
             const bgColorRgba = colorToRgba(propsForContent.bgColor);
             const finalBgColor = bgColorRgba.a < 0.01 ? null : `rgba(${bgColorRgba.r}, ${bgColorRgba.g}, ${bgColorRgba.b}, ${bgColorRgba.a})`;
     
-            // Final render with the dedicated font option.
             const dataUrl = await htmlToImage.toPng(exportNode, {
-                ...commonExportOptions,
                 backgroundColor: finalBgColor,
                 quality: 1.0,
                 pixelRatio: 2,
@@ -240,7 +236,10 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         } finally {
-            // Restore original link tags.
+            // Step 9: CRITICAL cleanup block
+            if (styleNodeToAdd && document.head.contains(styleNodeToAdd)) {
+                document.head.removeChild(styleNodeToAdd);
+            }
             linksToRemove.forEach(linkEl => document.head.appendChild(linkEl));
         }
     }, [pngSettings.font, propsForContent.bgColor]);
