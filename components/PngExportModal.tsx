@@ -163,10 +163,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
     
         setExportStage('generating_image');
-        const tempStyleId = `temp-font-embed-style-${Date.now()}`;
-        const style = document.createElement('style');
-        style.id = tempStyleId;
-
         const linksToRemove: HTMLLinkElement[] = [];
     
         try {
@@ -183,11 +179,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             const selectedFont = FONT_OPTIONS.find(f => f.id === fontId);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
     
+            // Generate the @font-face CSS with Base64 data, but don't inject it into the DOM.
             const fontEmbedCSS = await embedFontForExport(selectedFont);
-            style.innerHTML = fontEmbedCSS;
-            document.head.appendChild(style);
     
             setLoadingMessage('同步字體引擎...');
+            // We still await document.fonts.load to ensure the font is ready for the preview render.
             const primaryFontFamily = selectedFont.familyName;
             const loadPromises = selectedFont.weights.map(weight =>
                 document.fonts.load(`${weight} 1em "${primaryFontFamily}"`)
@@ -200,21 +196,25 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                 }
             };
+
+            // NEW: Define a common options object, passing the font CSS directly to the library.
+            const commonExportOptions = {
+                fetchRequestInit: fetchOptions,
+                fontEmbedCSS: fontEmbedCSS, // The definitive fix!
+            };
             
             setLoadingMessage('繪製預覽...');
             await yieldToBrowser();
 
             setLoadingMessage('強制同步畫面...');
-            // CRITICAL STEP: Force browser reflow to ensure the font is painted.
-            // This is the final piece to solve iOS/WebKit rendering race conditions.
-            const _ = exportNode.offsetHeight;
+            const _ = exportNode.offsetHeight; // Force reflow before cloning.
 
             try {
-                // This is the "priming" or "warm-up" render.
+                // "Priming" render with the dedicated font option.
                 await htmlToImage.toPng(exportNode, {
+                    ...commonExportOptions,
                     pixelRatio: 0.01,
                     quality: 0.01,
-                    fetchRequestInit: fetchOptions,
                 });
             } catch (primingError) {
                 console.log('Priming render failed as expected, continuing...', primingError);
@@ -224,11 +224,12 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             const bgColorRgba = colorToRgba(propsForContent.bgColor);
             const finalBgColor = bgColorRgba.a < 0.01 ? null : `rgba(${bgColorRgba.r}, ${bgColorRgba.g}, ${bgColorRgba.b}, ${bgColorRgba.a})`;
     
+            // Final render with the dedicated font option.
             const dataUrl = await htmlToImage.toPng(exportNode, {
+                ...commonExportOptions,
                 backgroundColor: finalBgColor,
                 quality: 1.0,
                 pixelRatio: 2,
-                fetchRequestInit: fetchOptions,
             });
     
             setGeneratedPngDataUrl(dataUrl);
@@ -239,10 +240,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         } finally {
-            const tempStyleElement = document.getElementById(tempStyleId);
-            if (tempStyleElement) {
-                document.head.removeChild(tempStyleElement);
-            }
+            // Restore original link tags.
             linksToRemove.forEach(linkEl => document.head.appendChild(linkEl));
         }
     }, [pngSettings.font, propsForContent.bgColor]);
