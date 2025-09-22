@@ -9,9 +9,10 @@ interface ModalProps {
   footerContent: React.ReactNode;
   children: React.ReactNode;
   modalClassName?: string;
+  fullHeightContent?: boolean; // NEW PROP
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerContent, children, modalClassName }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerContent, children, modalClassName, fullHeightContent = false }) => {
   const footerRef = useRef<HTMLElement>(null);
   const [footerHeight, setFooterHeight] = useState(0);
 
@@ -64,8 +65,11 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, headerContent, footerCon
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 rounded-full flex-shrink-0 ml-4"><CloseIcon /></button>
         </header>
 
-        <main className="flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900" style={{ paddingBottom: footerHeight ? `${footerHeight}px` : '8rem' }}>
-            <div className="p-4 md:p-6">
+        <main 
+            className="flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900" 
+            style={{ paddingBottom: fullHeightContent ? '0' : (footerHeight ? `${footerHeight}px` : '8rem') }}
+        >
+            <div className={`p-4 md:p-6 ${fullHeightContent ? 'h-full p-0 md:p-0' : ''}`}>
                 {children}
             </div>
         </main>
