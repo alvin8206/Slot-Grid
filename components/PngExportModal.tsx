@@ -204,6 +204,10 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             } catch (primingError) {
                 console.log('Priming render failed as expected, continuing...', primingError);
             }
+
+            // FIX: Add a small delay to ensure mobile browsers have time to process the font
+            // after the priming render. This is a crucial step for reliability on some devices.
+            await new Promise(resolve => setTimeout(resolve, 50));
     
             // --- STAGE 2: THE PRODUCTION RENDER ---
             setLoadingMessage('正在生成圖片...');
@@ -320,7 +324,12 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                                 </button>
                             </div>
 
-                            <div ref={scaleWrapperRef} style={{ transition: 'transform 0.2s ease-out', visibility: selectedFontStatus === 'loaded' ? 'visible' : 'hidden' }}>
+                            <div 
+                                ref={scaleWrapperRef} 
+                                draggable="false" 
+                                className="touch-none select-none"
+                                style={{ transition: 'transform 0.2s ease-out', visibility: selectedFontStatus === 'loaded' ? 'visible' : 'hidden' }}
+                            >
                                 <PngExportContent {...propsForContent} />
                             </div>
                             {selectedFontStatus !== 'loaded' && (

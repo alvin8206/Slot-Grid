@@ -270,7 +270,7 @@ export const ExportCompletionView: React.FC<ExportCompletionViewProps> = ({ isEx
                     {/* Left Column: Image */}
                     <div className="w-2/3 h-full">
                         <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-2 h-full overflow-auto">
-                            <img src={generatedPngDataUrl} alt="Generated Schedule" className="max-w-full h-auto mx-auto rounded-md shadow-lg" />
+                            <img src={generatedPngDataUrl} alt="Generated Schedule" className="max-w-full h-auto mx-auto rounded-md shadow-lg touch-none select-none" draggable="false" />
                         </div>
                     </div>
                     {/* Right Column: Info, Buttons, Ad */}
@@ -339,7 +339,7 @@ export const ExportCompletionView: React.FC<ExportCompletionViewProps> = ({ isEx
                             <div className="max-w-[16rem] md:max-w-xl mx-auto">
                                 <div className="shadow-2xl rounded-lg">
                                     <div className="bg-white dark:bg-gray-900 rounded-lg overflow-hidden">
-                                        <img src={generatedPngDataUrl} alt="Generated Schedule" className="max-w-full h-auto mx-auto" />
+                                        <img src={generatedPngDataUrl} alt="Generated Schedule" className="max-w-full h-auto mx-auto touch-none select-none" draggable="false" />
                                     </div>
                                 </div>
                             </div>
