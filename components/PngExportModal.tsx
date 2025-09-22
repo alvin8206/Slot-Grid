@@ -142,6 +142,19 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
     }, [fontStatuses, loadFont, updateSetting]);
     
+    /**
+     * Pauses execution until the browser has completed its next paint cycle.
+     * This is crucial for ensuring DOM updates (like applying a new font)
+     * are fully rendered before capturing an image.
+     */
+    const yieldToBrowser = async (): Promise<void> => {
+        return new Promise(resolve => {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => resolve());
+            });
+        });
+    };
+    
     const handleStartExport = useCallback(async () => {
         const exportNode = exportRef.current;
         if (!exportNode || typeof htmlToImage === 'undefined') {
@@ -150,7 +163,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
     
         setExportStage('generating_image');
-        // Use a more specific ID for the temporary style to avoid potential conflicts.
         const tempStyleId = `temp-font-embed-style-${Date.now()}`;
         const style = document.createElement('style');
         style.id = tempStyleId;
@@ -158,10 +170,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         const linksToRemove: HTMLLinkElement[] = [];
     
         try {
-            // --- STEP 1: PREPARE FONT & ENVIRONMENT ---
             setLoadingMessage('準備資源...');
-    
-            // Temporarily remove all Google Font <link> tags to avoid CORS issues.
             document.querySelectorAll('link[href*="fonts.googleapis.com"]').forEach(linkNode => {
                 const linkEl = linkNode as HTMLLinkElement;
                 if (document.head.contains(linkEl)) {
@@ -178,9 +187,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             style.innerHTML = fontEmbedCSS;
             document.head.appendChild(style);
     
-            // --- STEP 2: GUARANTEE FONT IS READY ---
-            // This is the crucial step to fix the mobile race condition.
-            // We explicitly wait for the browser to confirm all required font weights are loaded.
             setLoadingMessage('同步字體引擎...');
             const primaryFontFamily = selectedFont.familyName;
             const loadPromises = selectedFont.weights.map(weight =>
@@ -188,8 +194,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             );
             await Promise.all(loadPromises);
     
-            // --- STEP 3: THE PRIMING RENDER ---
-            setLoadingMessage('正在準備引擎...');
+            setLoadingMessage('準備引擎...');
             const fetchOptions = {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -206,10 +211,10 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 console.log('Priming render failed as expected, continuing...', primingError);
             }
     
-            // A small delay remains as a final safeguard for the most stubborn mobile browsers.
-            await new Promise(resolve => setTimeout(resolve, 50));
+            // NEW: Replace the fixed timeout with a more reliable paint cycle wait.
+            setLoadingMessage('繪製預覽...');
+            await yieldToBrowser();
     
-            // --- STEP 4: THE PRODUCTION RENDER ---
             setLoadingMessage('正在生成圖片...');
             const bgColorRgba = colorToRgba(propsForContent.bgColor);
             const finalBgColor = bgColorRgba.a < 0.01 ? null : `rgba(${bgColorRgba.r}, ${bgColorRgba.g}, ${bgColorRgba.b}, ${bgColorRgba.a})`;
@@ -229,7 +234,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         } finally {
-            // --- STEP 5: CLEANUP ---
             const tempStyleElement = document.getElementById(tempStyleId);
             if (tempStyleElement) {
                 document.head.removeChild(tempStyleElement);
