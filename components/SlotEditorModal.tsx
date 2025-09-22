@@ -1,7 +1,7 @@
 // components/SlotEditorModal.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Slot, DayStatus, DayData, ScheduleData, CalendarDay } from '../types';
-import { MONTH_NAMES, DAY_NAMES, PREDEFINED_SLOTS } from '../constants';
+import { MONTH_NAMES, PREDEFINED_SLOTS } from '../constants';
 import { CopyIcon, ClipboardIcon, TrashIcon, CheckIcon } from './icons';
 import Modal from './Modal';
 import { getEffectiveStatus, formatDateKey, DAY_STATUS_TEXT_MAP } from '../utils';
@@ -11,6 +11,7 @@ interface SlotEditorModalProps {
   selectedDay: Date | null;
   scheduleData: ScheduleData;
   calendarDays: CalendarDay[];
+  dayNames: string[];
   onClose: () => void;
   onDone: (updatedDay: { date: Date, dayData: DayData }, pastedDays: string[]) => void;
   copiedSlots: Slot[] | null;
@@ -18,7 +19,7 @@ interface SlotEditorModalProps {
   loginPromptContent?: React.ReactNode;
 }
 
-const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, scheduleData, calendarDays, onClose, onDone, copiedSlots, onCopy, loginPromptContent }) => {
+const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, scheduleData, calendarDays, dayNames, onClose, onDone, copiedSlots, onCopy, loginPromptContent }) => {
   const [localSlots, setLocalSlots] = useState<Map<string, Slot>>(new Map());
   const [localStatus, setLocalStatus] = useState<DayStatus>('available');
   const [customSlot, setCustomSlot] = useState('');
@@ -278,7 +279,7 @@ const SlotEditorModal: React.FC<SlotEditorModalProps> = ({ isOpen, selectedDay, 
                         </button>
                     </div>
                     <div className="grid grid-cols-7 gap-1 text-center font-semibold text-gray-500 dark:text-gray-400 text-xs mb-2">
-                        {DAY_NAMES.map(day => <div key={day}>{day}</div>)}
+                        {dayNames.map(day => <div key={day}>{day}</div>)}
                     </div>
                     <div className="grid grid-cols-7 gap-1">
                         {calendarDays.map(({ date, isCurrentMonth }, index) => {
