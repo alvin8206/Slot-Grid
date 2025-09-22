@@ -240,18 +240,18 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
     );
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer}>
-            <div className="space-y-6">
-                <div>
+        <Modal isOpen={isOpen} onClose={onClose} headerContent={header} footerContent={footer} modalClassName="xl:max-w-4xl">
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
+                <div className="w-full lg:w-1/2 lg:sticky lg:top-0 space-y-4">
                     <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
                         <textarea 
                             readOnly 
                             value={generatedText}
-                            className="w-full h-48 md:h-56 bg-transparent resize-none border-none focus:ring-0 text-sm text-gray-800 dark:text-gray-200"
+                            className="w-full h-48 md:h-56 lg:h-[60vh] bg-transparent resize-none border-none focus:ring-0 text-sm text-gray-800 dark:text-gray-200"
                         />
                     </div>
                     {layout === 'compact' && (
-                        <div className="mt-4 flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/50">
+                        <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/50">
                             <LightbulbIcon className="w-5 h-5 text-blue-500 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                             <div className="text-xs text-blue-800 dark:text-blue-300">
                                 <p className="font-semibold">Instagram 限時動態對齊提示：</p>
@@ -265,68 +265,69 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                     )}
                 </div>
 
-
-                <div className="space-y-2">
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">排版</label>
-                    <div className="grid grid-cols-3 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                        <button onClick={() => updateSetting('layout', 'default')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'default' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>垂直</button>
-                        <button onClick={() => updateSetting('layout', 'compact')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'compact' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>水平</button>
-                        <button onClick={() => updateSetting('layout', 'double-row')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'double-row' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>雙排</button>
+                <div className="w-full lg:w-1/2 space-y-6">
+                    <div className="space-y-2">
+                        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">排版</label>
+                        <div className="grid grid-cols-3 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                            <button onClick={() => updateSetting('layout', 'default')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'default' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>垂直</button>
+                            <button onClick={() => updateSetting('layout', 'compact')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'compact' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>水平</button>
+                            <button onClick={() => updateSetting('layout', 'double-row')} className={`py-2 rounded-lg transition-all text-sm font-medium ${layout === 'double-row' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>雙排</button>
+                        </div>
                     </div>
-                </div>
 
-                 <div className="space-y-2">
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">顯示範圍</label>
-                    <div className="grid grid-cols-3 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                        <button onClick={() => updateSetting('dateFilter', 'all')} className={`py-2 rounded-lg transition-all text-sm font-medium ${dateFilter === 'all' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>全部</button>
-                        <button onClick={() => updateSetting('dateFilter', 'weekdays')} className={`py-2 rounded-lg transition-all text-sm font-medium ${dateFilter === 'weekdays' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>僅平日</button>
-                        <button onClick={() => updateSetting('dateFilter', 'weekends')} className={`py-2 rounded-lg transition-all text-sm font-medium ${dateFilter === 'weekends' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>僅假日</button>
+                     <div className="space-y-2">
+                        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">顯示範圍</label>
+                        <div className="grid grid-cols-3 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                            <button onClick={() => updateSetting('dateFilter', 'all')} className={`py-2 rounded-lg transition-all text-sm font-medium ${dateFilter === 'all' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>全部</button>
+                            <button onClick={() => updateSetting('dateFilter', 'weekdays')} className={`py-2 rounded-lg transition-all text-sm font-medium ${dateFilter === 'weekdays' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>僅平日</button>
+                            <button onClick={() => updateSetting('dateFilter', 'weekends')} className={`py-2 rounded-lg transition-all text-sm font-medium ${dateFilter === 'weekends' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>僅假日</button>
+                        </div>
                     </div>
-                </div>
 
-                <div className="space-y-2">
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">時段分隔符</label>
-                    <div className="grid grid-cols-7 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                        {SEPARATOR_OPTIONS.map(opt => (
-                            <button 
-                                key={opt.value}
-                                onClick={() => updateSetting('slotSeparator', opt.value)} 
-                                className={`py-2 rounded-lg transition-all text-sm font-medium ${slotSeparator === opt.value ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}
-                            >
-                                {opt.display}
-                            </button>
-                        ))}
+                    <div className="space-y-2">
+                        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">時段分隔符</label>
+                        <div className="grid grid-cols-7 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                            {SEPARATOR_OPTIONS.map(opt => (
+                                <button 
+                                    key={opt.value}
+                                    onClick={() => updateSetting('slotSeparator', opt.value)} 
+                                    className={`py-2 rounded-lg transition-all text-sm font-medium ${slotSeparator === opt.value ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}
+                                >
+                                    {opt.display}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </div>
 
-                <div className="space-y-2">
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">語言</label>
-                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                        <button onClick={() => updateSetting('language', 'zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>中文</button>
-                        <button onClick={() => updateSetting('language', 'en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>English</button>
+                    <div className="space-y-2">
+                        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">語言</label>
+                        <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                            <button onClick={() => updateSetting('language', 'zh')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'zh' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>中文</button>
+                            <button onClick={() => updateSetting('language', 'en')} className={`py-2 rounded-lg transition-all text-sm font-medium ${language === 'en' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>English</button>
+                        </div>
                     </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                  <ToggleSwitch id="include-title" label="顯示標題" checked={includeTitle} onChange={c => updateSetting('includeTitle', c)} />
-                  <ToggleSwitch id="include-year" label="顯示年份" checked={includeYear} onChange={c => updateSetting('includeYear', c)} />
-                  <ToggleSwitch id="show-month" label="顯示月份" checked={showMonth} onChange={c => updateSetting('showMonth', c)} />
-                  <ToggleSwitch id="show-day-of-week" label="顯示星期" checked={showDayOfWeek} onChange={c => updateSetting('showDayOfWeek', c)} />
-                  <ToggleSwitch id="show-day-off" label="顯示休假日" checked={showDayOff} onChange={c => updateSetting('showDayOff', c)} />
-                  <ToggleSwitch id="show-fully-booked" label="顯示已額滿日" checked={showFullyBooked} onChange={c => updateSetting('showFullyBooked', c)} />
-                  <ToggleSwitch id="show-training" label="顯示進修日" checked={showTraining} onChange={c => updateSetting('showTraining', c)} />
-                  <ToggleSwitch id="show-booked" label="顯示已預約時段" checked={showBooked} onChange={c => updateSetting('showBooked', c)} />
-                </div>
-                
-                {showBooked && (
-                  <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
-                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
-                      <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                          <button onClick={() => updateSetting('bookedStyle', 'strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>刪除線</button>
-                          <button onClick={() => updateSetting('bookedStyle', 'annotation')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'annotation' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>文字註記</button>
+                    
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                      <ToggleSwitch id="include-title" label="顯示標題" checked={includeTitle} onChange={c => updateSetting('includeTitle', c)} />
+                      <ToggleSwitch id="include-year" label="顯示年份" checked={includeYear} onChange={c => updateSetting('includeYear', c)} />
+                      <ToggleSwitch id="show-month" label="顯示月份" checked={showMonth} onChange={c => updateSetting('showMonth', c)} />
+                      <ToggleSwitch id="show-day-of-week" label="顯示星期" checked={showDayOfWeek} onChange={c => updateSetting('showDayOfWeek', c)} />
+                      <ToggleSwitch id="show-day-off" label="顯示休假日" checked={showDayOff} onChange={c => updateSetting('showDayOff', c)} />
+                      <ToggleSwitch id="show-fully-booked" label="顯示已額滿日" checked={showFullyBooked} onChange={c => updateSetting('showFullyBooked', c)} />
+                      <ToggleSwitch id="show-training" label="顯示進修日" checked={showTraining} onChange={c => updateSetting('showTraining', c)} />
+                      <ToggleSwitch id="show-booked" label="顯示已預約時段" checked={showBooked} onChange={c => updateSetting('showBooked', c)} />
+                    </div>
+                    
+                    {showBooked && (
+                      <div className="space-y-2 pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
+                          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">已預約樣式</label>
+                          <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
+                              <button onClick={() => updateSetting('bookedStyle', 'strikethrough')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'strikethrough' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>刪除線</button>
+                              <button onClick={() => updateSetting('bookedStyle', 'annotation')} className={`py-2 rounded-lg transition-all text-sm font-medium ${bookedStyle === 'annotation' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>文字註記</button>
+                          </div>
                       </div>
-                  </div>
-                )}
+                    )}
+                </div>
             </div>
         </Modal>
     );
