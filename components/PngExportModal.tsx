@@ -134,71 +134,72 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             alert('匯出工具尚未準備好，請稍後再試。');
             return;
         }
-
+    
         setExportStage('generating_image');
-        
-        const fontLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[href*="fonts.googleapis.com"]'));
-        const head = document.head;
-        fontLinks.forEach(link => head.removeChild(link));
-
+        const style = document.createElement('style'); // For cleanup reference
+    
         try {
             // --- COMMON SETUP: Prepare font resources ---
             setLoadingMessage('準備資源...');
             const fontId = pngSettings.font;
-            let fontEmbedCSS: string;
-
             const selectedFont = FONT_OPTIONS.find(f => f.id === fontId);
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
-            fontEmbedCSS = await embedFontForExport(selectedFont);
-            
+    
+            const fontEmbedCSS = await embedFontForExport(selectedFont);
+    
+            // Inject style tag directly into the export node for better compatibility
+            style.id = 'temp-font-embed-style';
+            style.innerHTML = fontEmbedCSS;
+            exportNode.prepend(style);
+    
+            const filter = (node: HTMLElement) => {
+                // This filter prevents the original <link> tags in the document's <head>
+                // from being processed by html-to-image. Our embedded style tag inside
+                // the export node will be used instead.
+                if (node.tagName === 'LINK' && (node as HTMLLinkElement).href.includes('fonts.googleapis.com')) {
+                    return false;
+                }
+                return true;
+            };
+    
             // --- STAGE 1: THE PRIMING RENDER ---
             setLoadingMessage('正在準備引擎...');
             try {
                 await htmlToImage.toPng(exportNode, {
                     pixelRatio: 0.01,
                     quality: 0.01,
-                    fontEmbedCSS: fontEmbedCSS,
-                    filter: (node: HTMLElement) => {
-                        if (node.tagName === 'LINK' && (node as HTMLLinkElement).href.includes('fonts.googleapis.com')) {
-                            return false;
-                        }
-                        return true;
-                    }
+                    filter: filter,
                 });
             } catch (primingError) {
-                console.log('Priming render failed as expected, which is normal on some devices. Continuing...', primingError);
+                console.log('Priming render failed as expected, continuing...', primingError);
             }
-
+    
             // --- STAGE 2: THE PRODUCTION RENDER ---
             setLoadingMessage('正在生成圖片...');
             const bgColorRgba = colorToRgba(propsForContent.bgColor);
             const finalBgColor = bgColorRgba.a < 0.01 ? null : `rgba(${bgColorRgba.r}, ${bgColorRgba.g}, ${bgColorRgba.b}, ${bgColorRgba.a})`;
-
+    
             const dataUrl = await htmlToImage.toPng(exportNode, {
                 backgroundColor: finalBgColor,
                 quality: 1.0,
                 pixelRatio: 2,
-                fontEmbedCSS: fontEmbedCSS,
-                filter: (node: HTMLElement) => {
-                    if (node.tagName === 'LINK' && (node as HTMLLinkElement).href.includes('fonts.googleapis.com')) {
-                        return false;
-                    }
-                    return true;
-                }
+                filter: filter,
             });
-            
+    
             setGeneratedPngDataUrl(dataUrl);
             setExportStage('completed');
-
+    
         } catch (error) {
             console.error('Oops, something went wrong during PNG export!', error);
             alert(`匯出圖片時發生錯誤！ ${error instanceof Error ? error.message : ''}`);
             setExportStage('configuring');
         } finally {
             // --- CLEANUP ---
-            fontLinks.forEach(link => head.appendChild(link));
+            if (style.parentNode === exportNode) {
+                exportNode.removeChild(style);
+            }
         }
-    }, [pngSettings.font, propsForContent.bgColor]);
+    }, [pngSettings.font, propsForContent.bgColor, embedFontForExport]);
 
 
     const handleOpenInNewTab = useCallback(async () => {

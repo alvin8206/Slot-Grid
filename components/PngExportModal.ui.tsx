@@ -228,7 +228,7 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ pngSettings, upd
                                                 <button
                                                     key={font.id}
                                                     onClick={() => handleFontSelect(font.id)}
-                                                    className={`w-full text-left p-2 rounded-md transition-colors text-sm flex items-center justify-between ${pngSettings.font === font.id ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                                    className={`w-full text-left p-2 rounded-md transition-colors text-sm flex items-center justify-between ${pngSettings.font === font.id ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                                                 >
                                                     <span style={{ fontFamily: status === 'loaded' ? font.id : 'sans-serif' }}>{font.name}</span>
                                                     {status === 'loading' && <SpinnerIcon className="w-4 h-4 text-gray-400" />}
