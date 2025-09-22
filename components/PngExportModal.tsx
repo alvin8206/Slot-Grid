@@ -1,13 +1,15 @@
 import React from 'react';
-import type { ScheduleData, CalendarDay, PngSettingsState, PngExportViewMode } from '../types';
-import { DownloadIcon, SpinnerIcon, TrashIcon } from './icons';
+import type { ScheduleData, CalendarDay, PngSettingsState, PngDisplayMode, PngDateRange } from '../types';
+import { DownloadIcon, SpinnerIcon, CalendarIcon, ListIcon } from './icons';
 import Modal from './Modal';
 import PngExportContent from './PngExportContent';
 import { embedFontForExport } from '../fontUtils';
-import { FONT_OPTIONS, ExportStage, PngSettingsTab } from './PngExportModal.helpers';
+import { FONT_OPTIONS, ExportStage } from './PngExportModal.helpers';
 import { useFontLoader, usePreviewScaling } from './PngExportModal.hooks';
 import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { colorToRgba } from '../utils';
+import type { WeekStartDay } from '../App';
 
 // The htmlToImage library is loaded via CDN and available on the window object.
 declare const htmlToImage: any;
@@ -17,8 +19,10 @@ interface PngExportModalProps {
     onClose: () => void;
     scheduleData: ScheduleData;
     title: string;
+    onTitleChange: (newTitle: string) => void;
     calendarDays: CalendarDay[];
     currentDate: Date;
+    weekStartsOn: WeekStartDay;
     loginPromptContent?: React.ReactNode;
     pngSettings: PngSettingsState;
     setPngSettings: React.Dispatch<React.SetStateAction<PngSettingsState>>;
@@ -29,8 +33,10 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     onClose,
     scheduleData,
     title,
+    onTitleChange,
     calendarDays,
     currentDate,
+    weekStartsOn,
     loginPromptContent,
     pngSettings,
     setPngSettings,
@@ -41,22 +47,27 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     const scaleWrapperRef = useRef<HTMLDivElement>(null);
     
     // --- State Management ---
-    const [activeTab, setActiveTab] = useState<PngSettingsTab>('content');
     const [localTitle, setLocalTitle] = useState(title);
     const [exportStage, setExportStage] = useState<ExportStage>('configuring');
     const [generatedPngDataUrl, setGeneratedPngDataUrl] = useState<string | null>(null);
     const [loadingMessage, setLoadingMessage] = useState('');
 
     const updateSetting = <K extends keyof PngSettingsState>(key: K, value: PngSettingsState[K]) => {
-        setPngSettings(prev => ({ ...prev, [key]: value }));
+        setPngSettings(prev => {
+            const newState = { ...prev, [key]: value };
+            if (key === 'pngDisplayMode' && value === 'calendar' && newState.pngDateRange === 'upcoming2Weeks') {
+                newState.pngDateRange = 'full';
+            }
+            return newState;
+        });
     };
 
     // --- Custom Hooks for complex logic ---
     const { fontStatuses, loadFont } = useFontLoader();
     const propsForContent = useMemo(() => ({
-        scheduleData, title: localTitle, calendarDays, currentDate,
+        scheduleData, title: localTitle, calendarDays, currentDate, weekStartsOn,
         ...pngSettings,
-    }), [scheduleData, localTitle, calendarDays, currentDate, pngSettings]);
+    }), [scheduleData, localTitle, calendarDays, currentDate, weekStartsOn, pngSettings]);
     
     const selectedFontStatus = fontStatuses[pngSettings.font] || 'idle';
 
@@ -65,6 +76,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         scaleWrapperRef,
         exportRef,
         exportWidth: 800,
+        displayMode: pngSettings.pngDisplayMode,
     });
     
     // --- Effects ---
@@ -73,19 +85,32 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             setExportStage('configuring');
             setGeneratedPngDataUrl(null);
             setLocalTitle(title);
-            setActiveTab('content');
         }
     }, [isOpen, title]);
+
+    useEffect(() => {
+        if (!isOpen || localTitle === title) {
+            return;
+        }
+
+        const handler = setTimeout(() => {
+            onTitleChange(localTitle);
+        }, 1000);
+
+        return () => clearTimeout(handler);
+    }, [localTitle, title, onTitleChange, isOpen]);
     
+    // REVISED EFFECT: Preload ALL fonts when the modal opens for live preview in the list.
     useEffect(() => {
         if (isOpen) {
-            const selectedFontOption = FONT_OPTIONS.find(f => f.id === pngSettings.font);
-
-            if (selectedFontOption && (fontStatuses[pngSettings.font] || 'idle') === 'idle') {
-                loadFont(selectedFontOption).catch(e => console.error("Failed to preload selected font:", e));
-            }
+            FONT_OPTIONS.forEach(fontOption => {
+                if ((fontStatuses[fontOption.id] || 'idle') === 'idle') {
+                    // We don't need to await this. Let them load in the background.
+                    loadFont(fontOption).catch(e => console.error(`Failed to preload font: ${fontOption.name}`, e));
+                }
+            });
         }
-    }, [isOpen, pngSettings.font, fontStatuses, loadFont]);
+    }, [isOpen, loadFont, fontStatuses]); // Dependencies ensure this runs once when modal opens.
 
     // --- Event Handlers ---
     const handleFontSelect = useCallback(async (fontId: string) => {
@@ -111,9 +136,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
 
         setExportStage('generating_image');
-        const styleElement = document.createElement('style');
         
-        // FIX: Temporarily remove external font links to prevent CORS errors in the console.
         const fontLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[href*="fonts.googleapis.com"]'));
         const head = document.head;
         fontLinks.forEach(link => head.removeChild(link));
@@ -128,16 +151,19 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             if (!selectedFont) throw new Error("錯誤：找不到選擇的字體。");
             fontEmbedCSS = await embedFontForExport(selectedFont);
             
-            styleElement.textContent = fontEmbedCSS;
-            exportNode.appendChild(styleElement);
-            await new Promise(resolve => requestAnimationFrame(resolve));
-
             // --- STAGE 1: THE PRIMING RENDER ---
             setLoadingMessage('正在準備引擎...');
             try {
                 await htmlToImage.toPng(exportNode, {
                     pixelRatio: 0.01,
                     quality: 0.01,
+                    fontEmbedCSS: fontEmbedCSS,
+                    filter: (node: HTMLElement) => {
+                        if (node.tagName === 'LINK' && (node as HTMLLinkElement).href.includes('fonts.googleapis.com')) {
+                            return false;
+                        }
+                        return true;
+                    }
                 });
             } catch (primingError) {
                 console.log('Priming render failed as expected, which is normal on some devices. Continuing...', primingError);
@@ -145,10 +171,20 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
 
             // --- STAGE 2: THE PRODUCTION RENDER ---
             setLoadingMessage('正在生成圖片...');
+            const bgColorRgba = colorToRgba(propsForContent.bgColor);
+            const finalBgColor = bgColorRgba.a < 0.01 ? null : `rgba(${bgColorRgba.r}, ${bgColorRgba.g}, ${bgColorRgba.b}, ${bgColorRgba.a})`;
+
             const dataUrl = await htmlToImage.toPng(exportNode, {
-                backgroundColor: propsForContent.bgColor === 'transparent' ? null : propsForContent.bgColor,
+                backgroundColor: finalBgColor,
                 quality: 1.0,
                 pixelRatio: 2,
+                fontEmbedCSS: fontEmbedCSS,
+                filter: (node: HTMLElement) => {
+                    if (node.tagName === 'LINK' && (node as HTMLLinkElement).href.includes('fonts.googleapis.com')) {
+                        return false;
+                    }
+                    return true;
+                }
             });
             
             setGeneratedPngDataUrl(dataUrl);
@@ -160,10 +196,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             setExportStage('configuring');
         } finally {
             // --- CLEANUP ---
-            if (exportNode.contains(styleElement)) {
-                exportNode.removeChild(styleElement);
-            }
-            // Restore the removed font links to ensure the main UI is not broken.
             fontLinks.forEach(link => head.appendChild(link));
         }
     }, [pngSettings.font, propsForContent.bgColor]);
@@ -182,47 +214,42 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             window.open(generatedPngDataUrl, '_blank', 'noopener,noreferrer');
         }
     }, [generatedPngDataUrl]);
-
+    
     // --- Render Helpers ---
     const isExporting = exportStage === 'generating_image';
     
     const header = <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100" translate="no">{exportStage === 'completed' ? '匯出成功！' : '匯出 PNG 圖片'}</h2>;
     
-    const footer = exportStage === 'completed' ? null : (
-        <>
-            {loginPromptContent}
-            <div className="grid grid-cols-2 gap-3 w-full">
-                <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" disabled={isExporting}>關閉</button>
-                <button onClick={handleStartExport} disabled={isExporting || selectedFontStatus !== 'loaded'} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-wait">
-                    {isExporting ? <><SpinnerIcon className="w-5 h-5 mr-2" />{loadingMessage}</> : 
-                     selectedFontStatus !== 'loaded' ? <><SpinnerIcon className="w-5 h-5 mr-2" />字體準備中...</> : 
-                     <><DownloadIcon /> 下載 PNG</>}
-                </button>
-            </div>
-        </>
-    );
-    
-    const TabButton: React.FC<{ tab: PngSettingsTab, label: string; disabled?: boolean }> = ({ tab, label, disabled }) => (
-      <button 
-        onClick={() => !disabled && setActiveTab(tab)} 
-        disabled={disabled}
-        className={`py-2 px-4 rounded-lg transition-all text-sm font-medium ${activeTab === tab ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-        {label}
-      </button>
-    );
+    let footer: React.ReactNode = null;
+    if (exportStage === 'configuring') {
+        footer = (
+            <>
+                {loginPromptContent}
+                <div className="grid grid-cols-2 gap-3 w-full">
+                    <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" disabled={isExporting}>關閉</button>
+                    <button onClick={handleStartExport} disabled={isExporting || selectedFontStatus !== 'loaded'} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-wait">
+                        {isExporting ? <><SpinnerIcon className="w-5 h-5 mr-2" />{loadingMessage}</> : 
+                         selectedFontStatus !== 'loaded' ? <><SpinnerIcon className="w-5 h-5 mr-2" />字體準備中...</> : 
+                         <><DownloadIcon /> 下載 PNG</>}
+                    </button>
+                </div>
+            </>
+        );
+    }
+    // REMOVED: Footer logic for 'completed' stage is now handled inside ExportCompletionView
 
-    const ViewModeButton: React.FC<{ mode: PngExportViewMode, label: string }> = ({ mode, label }) => (
-        <button 
-          onClick={() => updateSetting('exportViewMode', mode)}
-          className={`py-2 rounded-lg transition-all text-sm font-medium ${pngSettings.exportViewMode === mode ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>
-          {label}
-        </button>
-      );
 
     if (!isOpen) return null;
 
     return (
-        <Modal isOpen={isOpen} onClose={isExporting ? () => {} : onClose} headerContent={header} footerContent={footer} modalClassName="xl:max-w-4xl">
+        <Modal 
+            isOpen={isOpen} 
+            onClose={isExporting ? () => {} : onClose} 
+            headerContent={header} 
+            footerContent={footer} 
+            modalClassName="xl:max-w-4xl"
+            fullHeightContent={exportStage === 'completed'}
+        >
             <div
                 style={{ position: 'fixed', top: 0, left: -99999, pointerEvents: 'none', opacity: 0 }}
               >
@@ -231,44 +258,52 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
 
             {exportStage === 'configuring' ? (
                 <div className="flex flex-col lg:flex-row gap-6 items-start">
-                    <div className="w-full lg:w-1/2 lg:sticky lg:top-0">
-                        <div className="space-y-2">
-                            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">預覽</h3>
-                            <div ref={previewContainerRef} className="w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md overflow-x-hidden max-h-[25vh] lg:max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                                <div ref={scaleWrapperRef} style={{ transformOrigin: 'top left', transition: 'transform 0.2s ease-out, height 0.2s ease-out', visibility: selectedFontStatus === 'loaded' ? 'visible' : 'hidden' }}>
-                                    <PngExportContent {...propsForContent} />
-                                </div>
-                                {selectedFontStatus !== 'loaded' && (
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <SpinnerIcon className="w-8 h-8 text-gray-500" />
-                                    </div>
-                                )}
+                    <div className="w-full lg:w-1/2 sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pb-4">
+                        <div
+                          ref={previewContainerRef}
+                          className={`
+                            relative w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md max-h-[25vh] lg:max-h-[35vh]
+                            flex justify-center items-start overflow-y-auto
+                          `}
+                        >
+                            <div className="absolute top-2 right-2 z-20 bg-gray-200/80 dark:bg-gray-900/80 backdrop-blur-sm p-1 rounded-lg flex items-center gap-1">
+                                <button
+                                    onClick={() => updateSetting('pngDisplayMode', 'calendar')}
+                                    className={`p-1.5 rounded-md transition-colors ${pngSettings.pngDisplayMode === 'calendar' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-gray-500/50'}`}
+                                    title="月曆模式"
+                                    aria-label="Calendar view"
+                                >
+                                    <CalendarIcon className="w-5 h-5"/>
+                                </button>
+                                <button
+                                    onClick={() => updateSetting('pngDisplayMode', 'list')}
+                                    className={`p-1.5 rounded-md transition-colors ${pngSettings.pngDisplayMode === 'list' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-gray-500/50'}`}
+                                    title="清單模式"
+                                    aria-label="List view"
+                                >
+                                    <ListIcon className="w-5 h-5"/>
+                                </button>
                             </div>
+
+                            <div ref={scaleWrapperRef} style={{ transition: 'transform 0.2s ease-out', visibility: selectedFontStatus === 'loaded' ? 'visible' : 'hidden' }}>
+                                <PngExportContent {...propsForContent} />
+                            </div>
+                            {selectedFontStatus !== 'loaded' && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <SpinnerIcon className="w-8 h-8 text-gray-500" />
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="w-full lg:w-1/2 space-y-4">
-                        <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                            <ViewModeButton mode="month" label="完整月曆"/>
-                            <ViewModeButton mode="remaining" label="剩餘月份"/>
-                            <ViewModeButton mode="list" label="清單模式"/>
-                        </div>
-
-                      <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-200 dark:bg-gray-700 p-1">
-                          <TabButton tab="content" label="內容" />
-                          <TabButton tab="style" label="樣式" />
-                          <TabButton tab="layout" label="排版" />
-                      </div>
-
-                      <SettingsPanels 
-                        activeTab={activeTab}
-                        pngSettings={pngSettings}
-                        updateSetting={updateSetting}
-                        localTitle={localTitle}
-                        setLocalTitle={setLocalTitle}
-                        fontStatuses={fontStatuses}
-                        handleFontSelect={handleFontSelect}
-                        loadFont={loadFont}
-                      />
+                        <SettingsPanels 
+                            pngSettings={pngSettings}
+                            updateSetting={updateSetting}
+                            localTitle={localTitle}
+                            setLocalTitle={setLocalTitle}
+                            fontStatuses={fontStatuses}
+                            handleFontSelect={handleFontSelect}
+                        />
                     </div>
                 </div>
             ) : (
