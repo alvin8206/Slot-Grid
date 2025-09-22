@@ -7,16 +7,13 @@ export interface Slot {
   state: 'available' | 'booked';
 }
 
-// NEW: Define the status for a whole day
 export type DayStatus = 'available' | 'dayOff' | 'closed' | 'fullyBooked' | 'training';
 
-// NEW: Define the data structure for a single day
 export interface DayData {
   status: DayStatus;
   slots: Slot[];
 }
 
-// UPDATED: ScheduleData now holds DayData objects
 export interface ScheduleData {
   [dateKey: string]: DayData;
 }
@@ -27,50 +24,76 @@ export interface CalendarDay {
   isToday: boolean;
 }
 
+// --- Shared Types ---
+
+export type Language = 'zh' | 'en';
+export type DateFilter = 'all' | 'weekdays' | 'weekends';
+
+
+// --- PNG Export Related Types ---
+
+export type PngDisplayMode = 'calendar' | 'list';
+export type PngDateRange = 'full' | 'remainingWeeks' | 'upcoming2Weeks';
 export type PngStyle = 'minimal' | 'borderless' | 'wireframe' | 'custom';
+export type PngTitleAlign = 'left' | 'center' | 'right';
+export type PngBookedStyle = 'strikethrough' | 'fade';
+export type PngStrikethroughThickness = 'thin' | 'thick';
 
-export type PngExportViewMode = 'month' | 'remaining' | 'list';
-
-export type TitleAlign = 'left' | 'center' | 'right';
-
-export interface PngSettingsState {
-  exportViewMode: PngExportViewMode;
-  pngStyle: PngStyle;
-  bgColor: string;
-  textColor: string;
-  borderColor: string;
-  blockColor: string;
-  showShadow: boolean;
-  showTitle: boolean;
-  showBookedSlots: boolean;
-  bookedStyle: 'strikethrough' | 'fade';
-  strikethroughColor: string;
-  strikethroughThickness: 'thin' | 'thick';
-  fontScale: number;
-  font: string;
-  language: 'zh' | 'en';
-  horizontalGap: number;
-  verticalGap: number;
-  titleAlign: TitleAlign;
-  // REVERTED: Bring back individual color settings for each status
-  dayOffColor: string;
-  closedColor: string;
-  fullyBookedColor: string;
-  trainingColor: string;
+// NEW: Define a type for padding values
+interface Padding {
+    top: string;
+    right: string;
+    bottom: string;
+    left: string;
 }
 
+export interface PngSettingsState {
+    pngDisplayMode: PngDisplayMode;
+    pngDateRange: PngDateRange;
+    pngListDateFilter: DateFilter;
+    pngStyle: PngStyle;
+    bgColor: string;
+    textColor: string;
+    borderColor: string;
+    blockColor: string;
+    showShadow: boolean;
+    showTitle: boolean;
+    titleAlign: PngTitleAlign;
+    showBookedSlots: boolean;
+    bookedStyle: PngBookedStyle;
+    strikethroughColor: string;
+    strikethroughThickness: PngStrikethroughThickness;
+    fontScale: number;
+    font: string;
+    language: Language;
+    dayOffColor: string;
+    closedColor: string;
+    fullyBookedColor: string;
+    trainingColor: string;
+    // NEW: Add separate padding controls for calendar and list views
+    padding: {
+        calendar: Padding;
+        list: Padding;
+    };
+}
+
+// --- Text Export Related Types ---
+
+export type TextExportLayout = 'compact' | 'default' | 'double-row';
+export type TextExportBookedStyle = 'strikethrough' | 'annotation';
+
 export interface TextExportSettingsState {
-  layout: 'default' | 'compact' | 'double-row';
-  language: 'zh' | 'en';
-  includeTitle: boolean;
-  includeYear: boolean;
-  showMonth: boolean;
-  showBooked: boolean;
-  showDayOfWeek: boolean;
-  showFullyBooked: boolean;
-  showDayOff: boolean;
-  showTraining: boolean;
-  bookedStyle: 'strikethrough' | 'annotation';
-  slotSeparator: string;
-  dateFilter: 'all' | 'weekdays' | 'weekends';
+    layout: TextExportLayout;
+    language: Language;
+    includeTitle: boolean;
+    includeYear: boolean;
+    showMonth: boolean;
+    showBooked: boolean;
+    showDayOfWeek: boolean;
+    showFullyBooked: boolean;
+    showDayOff: boolean;
+    showTraining: boolean;
+    bookedStyle: TextExportBookedStyle;
+    slotSeparator: string;
+    dateFilter: DateFilter;
 }
