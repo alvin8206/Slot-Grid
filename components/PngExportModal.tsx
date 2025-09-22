@@ -200,8 +200,17 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                 }
             };
+            
+            setLoadingMessage('繪製預覽...');
+            await yieldToBrowser();
+
+            setLoadingMessage('強制同步畫面...');
+            // CRITICAL STEP: Force browser reflow to ensure the font is painted.
+            // This is the final piece to solve iOS/WebKit rendering race conditions.
+            const _ = exportNode.offsetHeight;
 
             try {
+                // This is the "priming" or "warm-up" render.
                 await htmlToImage.toPng(exportNode, {
                     pixelRatio: 0.01,
                     quality: 0.01,
@@ -210,10 +219,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             } catch (primingError) {
                 console.log('Priming render failed as expected, continuing...', primingError);
             }
-    
-            // NEW: Replace the fixed timeout with a more reliable paint cycle wait.
-            setLoadingMessage('繪製預覽...');
-            await yieldToBrowser();
     
             setLoadingMessage('正在生成圖片...');
             const bgColorRgba = colorToRgba(propsForContent.bgColor);
