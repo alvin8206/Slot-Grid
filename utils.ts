@@ -102,47 +102,44 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } | nul
 }
 
 /**
- * Parses a color string (rgba, hex, transparent) into a hex value and an alpha channel.
- * @param color The color string to parse.
- * @returns An object with hex and alpha properties.
+ * Parses any valid CSS color string into an RGBA object.
+ * @param color The color string to parse (hex, rgb, rgba, transparent).
+ * @returns An object with r, g, b, a properties.
  */
-export function parseColor(color: string): { hex: string; alpha: number } {
-  if (color === 'transparent') {
-    return { hex: '#000000', alpha: 0 };
-  }
-
-  if (color.startsWith('#')) {
-    return { hex: color, alpha: 1 };
-  }
-
-  if (color.startsWith('rgba')) {
-    const parts = color.substring(color.indexOf('(') + 1, color.lastIndexOf(')')).split(/,\s*/);
-    if (parts.length === 4) {
-      const r = parseInt(parts[0], 10);
-      const g = parseInt(parts[1], 10);
-      const b = parseInt(parts[2], 10);
-      const alpha = parseFloat(parts[3]);
-      
-      const toHex = (c: number) => `0${c.toString(16)}`.slice(-2);
-      const hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-      
-      return { hex, alpha };
+export function colorToRgba(color: string): { r: number; g: number; b: number; a: number } {
+    if (color === 'transparent') {
+        return { r: 0, g: 0, b: 0, a: 0 };
     }
-  }
 
-  // Fallback for rgb() or other formats is not fully implemented.
-  if (color.startsWith('rgb')) {
-    const parts = color.substring(color.indexOf('(') + 1, color.lastIndexOf(')')).split(/,\s*/);
-     if (parts.length === 3) {
-      const r = parseInt(parts[0], 10);
-      const g = parseInt(parts[1], 10);
-      const b = parseInt(parts[2], 10);
-      const toHex = (c: number) => `0${c.toString(16)}`.slice(-2);
-      const hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-      return { hex, alpha: 1 };
+    if (color.startsWith('#')) {
+        const rgb = hexToRgb(color);
+        return rgb ? { ...rgb, a: 1 } : { r: 0, g: 0, b: 0, a: 1 };
     }
-  }
 
-  // A simple fallback to opaque black for safety.
-  return { hex: '#000000', alpha: 1 };
+    const matchRgba = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    if (matchRgba) {
+        return {
+            r: parseInt(matchRgba[1], 10),
+            g: parseInt(matchRgba[2], 10),
+            b: parseInt(matchRgba[3], 10),
+            a: matchRgba[4] !== undefined ? parseFloat(matchRgba[4]) : 1,
+        };
+    }
+    
+    // Fallback for invalid formats
+    return { r: 0, g: 0, b: 0, a: 1 };
+}
+
+/**
+ * Converts an RGBA object back to a CSS string (hex if opaque, rgba otherwise).
+ * @param rgba The RGBA object.
+ * @returns A CSS color string.
+ */
+export function rgbaToCssString(rgba: { r: number; g: number; b: number; a: number }): string {
+    const { r, g, b, a } = rgba;
+    if (a >= 1) {
+        const toHex = (c: number) => `0${Math.round(c).toString(16)}`.slice(-2);
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+    return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${Number(a.toFixed(3))})`;
 }
