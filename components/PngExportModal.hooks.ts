@@ -2,6 +2,7 @@
 import { useState, useCallback, useLayoutEffect, useRef } from 'react';
 import { FontOption, FontStatus } from './PngExportModal.helpers';
 import { getPrimaryFamily } from '../fonts';
+import type { PngDisplayMode } from '../types';
 
 /**
  * Hook to manage loading and status tracking of web fonts.
@@ -80,11 +81,12 @@ export const usePreviewScaling = (
         previewContainerRef: React.RefObject<HTMLDivElement>;
         scaleWrapperRef: React.RefObject<HTMLDivElement>;
         exportRef: React.RefObject<HTMLDivElement>;
-        exportWidth: number; // The native width of the content being scaled.
+        exportWidth: number;
+        displayMode: PngDisplayMode;
     }
 ) => {
     useLayoutEffect(() => {
-        const { previewContainerRef, scaleWrapperRef, exportRef, exportWidth } = options;
+        const { previewContainerRef, scaleWrapperRef, exportRef, exportWidth, displayMode } = options;
         const containerNode = previewContainerRef.current;
         const wrapperNode = scaleWrapperRef.current;
         const exportNode = exportRef.current;
@@ -93,54 +95,62 @@ export const usePreviewScaling = (
             return;
         }
 
-        // The layout calculation should only run when the font is confirmed to be ready.
         if (selectedFontStatus !== 'loaded') {
             return;
         }
         
         const updatePreviewLayout = () => {
-            if (!containerNode || !wrapperNode || !exportNode) return;
+            if (!containerNode || !wrapperNode || !exportNode) {
+                return;
+            }
             
-            const containerWidth = containerNode.offsetWidth;
+            // Reset inline styles before recalculating
+            wrapperNode.style.transform = '';
+            wrapperNode.style.height = '';
+            wrapperNode.style.marginLeft = '';
+            wrapperNode.style.marginTop = '';
+            wrapperNode.style.transformOrigin = '';
 
-            // Guard against 0 width, which can happen during initial render.
-            if (exportWidth <= 0 || containerWidth <= 0) {
+            const containerWidth = containerNode.clientWidth;
+            const containerHeight = containerNode.clientHeight;
+            const exportHeight = exportNode.offsetHeight;
+
+            if (exportWidth <= 0 || containerWidth <= 0 || exportHeight <= 0) {
                  return;
             }
 
-            // Only scale down, never enlarge. Clamp scale to a maximum of 1.
-            const scale = Math.min(1, containerWidth / exportWidth);
-            
-            // The `transform-origin: top left` is set on the element via style prop.
+            // UNIFIED LOGIC: Both calendar and list modes will now scale to width and allow scrolling.
+            // This prevents long lists from becoming unreadably small.
+            const scale = containerWidth / exportWidth;
+            wrapperNode.style.transformOrigin = 'top center';
             wrapperNode.style.transform = `scale(${scale})`;
             
-            const exportHeight = exportNode.offsetHeight;
+            // Set the wrapper's layout height to match the scaled visual height
+            // This prevents the container from reserving the original, unscaled height,
+            // which caused unnecessary scrolling space.
             const scaledHeight = exportHeight * scale;
             wrapperNode.style.height = `${scaledHeight}px`;
         };
 
-        // Use a debounced function that triggers a double RAF to ensure layout is stable.
         const scheduledUpdate = debounce(() => {
             requestAnimationFrame(() => {
                 requestAnimationFrame(updatePreviewLayout);
             });
-        }, 50); // A small debounce to handle rapid resize events smoothly.
+        }, 50);
 
-        // Run the initial layout calculation after a short delay for animations to settle.
         const initialTimeout = setTimeout(scheduledUpdate, 100);
-
-        // Only observe the container for changes in available space.
         const resizeObserver = new ResizeObserver(scheduledUpdate);
         resizeObserver.observe(containerNode);
 
-        // Cleanup function.
         return () => {
             clearTimeout(initialTimeout);
             resizeObserver.disconnect();
-            // Reset styles to prevent them from affecting the component when it's re-opened.
             if (wrapperNode) {
                  wrapperNode.style.height = '';
                  wrapperNode.style.transform = '';
+                 wrapperNode.style.marginLeft = '';
+                 wrapperNode.style.marginTop = '';
+                 wrapperNode.style.transformOrigin = '';
             }
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
