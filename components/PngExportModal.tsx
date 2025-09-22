@@ -100,17 +100,31 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         return () => clearTimeout(handler);
     }, [localTitle, title, onTitleChange, isOpen]);
     
-    // REVISED EFFECT: Preload ALL fonts when the modal opens for live preview in the list.
+    // EFFECT 1: Immediately load the currently selected font for a fast main preview.
     useEffect(() => {
         if (isOpen) {
-            FONT_OPTIONS.forEach(fontOption => {
-                if ((fontStatuses[fontOption.id] || 'idle') === 'idle') {
-                    // We don't need to await this. Let them load in the background.
-                    loadFont(fontOption).catch(e => console.error(`Failed to preload font: ${fontOption.name}`, e));
-                }
-            });
+            const selectedFontOption = FONT_OPTIONS.find(f => f.id === pngSettings.font);
+            if (selectedFontOption && (fontStatuses[selectedFontOption.id] || 'idle') === 'idle') {
+                loadFont(selectedFontOption).catch(e => console.error(`Failed to preload selected font: ${selectedFontOption.name}`, e));
+            }
         }
-    }, [isOpen, loadFont, fontStatuses]); // Dependencies ensure this runs once when modal opens.
+    }, [isOpen, pngSettings.font, loadFont, fontStatuses]);
+
+    // EFFECT 2: In the background, lazy-load all other fonts to populate the preview list styles.
+    useEffect(() => {
+        if (isOpen) {
+            // Use a small timeout to ensure this runs after the critical initial render.
+            const timer = setTimeout(() => {
+                FONT_OPTIONS.forEach(fontOption => {
+                    // `loadFont` is stable and has an internal check, so we can just call it.
+                    loadFont(fontOption).catch(e => console.error(`Failed to lazy-load font: ${fontOption.name}`, e));
+                });
+            }, 100);
+
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen, loadFont]);
+
 
     // --- Event Handlers ---
     const handleFontSelect = useCallback(async (fontId: string) => {
@@ -136,9 +150,21 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
         }
     
         setExportStage('generating_image');
-        const style = document.createElement('style'); // For cleanup reference
+        const style = document.createElement('style');
+        const linksToRemove: HTMLLinkElement[] = [];
     
         try {
+            // --- FIX: Temporarily remove all Google Font <link> tags from the document head ---
+            // This is the most reliable way to prevent html-to-image from trying to
+            // read their cross-origin cssRules, which causes a security error.
+            document.querySelectorAll('link[href*="fonts.googleapis.com"]').forEach(linkNode => {
+                const linkEl = linkNode as HTMLLinkElement;
+                if (document.head.contains(linkEl)) {
+                    document.head.removeChild(linkEl);
+                    linksToRemove.push(linkEl);
+                }
+            });
+
             // --- COMMON SETUP: Prepare font resources ---
             setLoadingMessage('準備資源...');
             const fontId = pngSettings.font;
@@ -153,15 +179,19 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             exportNode.prepend(style);
     
             const filter = (node: HTMLElement) => {
-                // This filter prevents the original <link> tags in the document's <head>
-                // from being processed by html-to-image. Our embedded style tag inside
-                // the export node will be used instead.
+                // This filter is now mostly redundant but kept as a safeguard.
                 if (node.tagName === 'LINK' && (node as HTMLLinkElement).href.includes('fonts.googleapis.com')) {
                     return false;
                 }
                 return true;
             };
     
+            const fetchOptions = {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                }
+            };
+
             // --- STAGE 1: THE PRIMING RENDER ---
             setLoadingMessage('正在準備引擎...');
             try {
@@ -169,6 +199,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                     pixelRatio: 0.01,
                     quality: 0.01,
                     filter: filter,
+                    fetchRequestInit: fetchOptions,
                 });
             } catch (primingError) {
                 console.log('Priming render failed as expected, continuing...', primingError);
@@ -184,6 +215,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                 quality: 1.0,
                 pixelRatio: 2,
                 filter: filter,
+                fetchRequestInit: fetchOptions,
             });
     
             setGeneratedPngDataUrl(dataUrl);
@@ -198,8 +230,10 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             if (style.parentNode === exportNode) {
                 exportNode.removeChild(style);
             }
+            // --- FIX: Add the removed <link> tags back to the document head ---
+            linksToRemove.forEach(linkEl => document.head.appendChild(linkEl));
         }
-    }, [pngSettings.font, propsForContent.bgColor, embedFontForExport]);
+    }, [pngSettings.font, propsForContent.bgColor]);
 
 
     const handleOpenInNewTab = useCallback(async () => {
@@ -264,7 +298,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                           ref={previewContainerRef}
                           className={`
                             relative w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md max-h-[25vh] lg:max-h-[35vh]
-                            flex justify-center items-start overflow-y-auto
+                            flex justify-center items-start overflow-y-auto overflow-x-hidden
                           `}
                         >
                             <div className="absolute top-2 right-2 z-20 bg-gray-200/80 dark:bg-gray-900/80 backdrop-blur-sm p-1 rounded-lg flex items-center gap-1">

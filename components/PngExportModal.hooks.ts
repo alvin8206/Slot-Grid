@@ -1,5 +1,5 @@
 // components/PngExportModal.hooks.ts
-import { useState, useCallback, useLayoutEffect, useRef } from 'react';
+import { useState, useCallback, useLayoutEffect, useRef, useEffect } from 'react';
 import { FontOption, FontStatus } from './PngExportModal.helpers';
 import { getPrimaryFamily } from '../fonts';
 import type { PngDisplayMode } from '../types';
@@ -9,12 +9,20 @@ import type { PngDisplayMode } from '../types';
  */
 export const useFontLoader = () => {
     const [fontStatuses, setFontStatuses] = useState<Record<string, FontStatus>>({});
+    
+    // Use a ref to hold the latest statuses, making `loadFont` stable across re-renders.
+    const statusesRef = useRef(fontStatuses);
+    useEffect(() => {
+        statusesRef.current = fontStatuses;
+    }, [fontStatuses]);
+
     const addedLinks = useRef(new Set<string>());
 
     const loadFont = useCallback(async (fontOption: FontOption): Promise<void> => {
         const { id, urlValue, name } = fontOption;
 
-        if (fontStatuses[id] === 'loaded' || fontStatuses[id] === 'loading') {
+        // Use the ref to check the *current* status without needing it as a dependency.
+        if (statusesRef.current[id] === 'loaded' || statusesRef.current[id] === 'loading') {
             return;
         }
 
@@ -48,7 +56,7 @@ export const useFontLoader = () => {
             setFontStatuses(prev => ({ ...prev, [id]: 'idle' }));
             throw error;
         }
-    }, [fontStatuses]);
+    }, []); // The dependency array is empty, so this function is stable.
 
     return { fontStatuses, loadFont };
 };

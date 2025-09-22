@@ -83,7 +83,7 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ pngSettings, upd
 
     return (
         <div className="space-y-4">
-            <Accordion title="通用設定">
+            <Accordion title="通用設定" defaultOpen={false}>
                 <div className="space-y-3">
                     <ToggleSwitch label="顯示標題" checked={pngSettings.showTitle} onChange={c => updateSetting('showTitle', c)} />
                     {pngSettings.showTitle && (
@@ -134,7 +134,7 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ pngSettings, upd
                 </div>
             </Accordion>
             
-            <Accordion title="顯示範圍">
+            <Accordion title="顯示範圍" defaultOpen={false}>
                 <div className="space-y-3">
                     <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">日期範圍</label>
                     <SegmentedControl
@@ -159,7 +159,7 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ pngSettings, upd
                 </div>
             </Accordion>
             
-            <Accordion title="顏色設定">
+            <Accordion title="顏色設定" defaultOpen={false}>
                 <div className="space-y-3">
                     <div>
                         <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 block">風格</label>
@@ -197,7 +197,7 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ pngSettings, upd
                 </div>
             </Accordion>
 
-            <Accordion title="字體設定">
+            <Accordion title="字體設定" defaultOpen={false}>
                 <div className="space-y-3">
                     <div>
                         <label htmlFor="font-scale" className="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -224,15 +224,16 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ pngSettings, upd
                                     <div className="space-y-1">
                                         {category.fonts.map(font => {
                                             const status = fontStatuses[font.id] || 'idle';
+                                            const isSelected = pngSettings.font === font.id;
                                             return (
                                                 <button
                                                     key={font.id}
                                                     onClick={() => handleFontSelect(font.id)}
-                                                    className={`w-full text-left p-2 rounded-md transition-colors text-sm flex items-center justify-between ${pngSettings.font === font.id ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                                    className={`w-full text-left p-2 rounded-md transition-colors text-sm flex items-center justify-between ${isSelected ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                                                 >
                                                     <span style={{ fontFamily: status === 'loaded' ? font.id : 'sans-serif' }}>{font.name}</span>
                                                     {status === 'loading' && <SpinnerIcon className="w-4 h-4 text-gray-400" />}
-                                                    {status === 'loaded' && pngSettings.font === font.id && <CheckIcon className="w-4 h-4 text-blue-600" />}
+                                                    {status === 'loaded' && isSelected && <CheckIcon className="w-4 h-4 text-blue-600" />}
                                                 </button>
                                             );
                                         })}
