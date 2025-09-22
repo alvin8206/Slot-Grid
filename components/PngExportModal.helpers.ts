@@ -3,7 +3,6 @@
 // --- Types ---
 
 export type FontStatus = 'idle' | 'loading' | 'loaded';
-export type PngSettingsTab = 'content' | 'style' | 'layout';
 export type ExportStage = 'configuring' | 'generating_image' | 'completed';
 
 export interface FontOption {
@@ -59,15 +58,15 @@ export const FONT_CATEGORIES: { name: string, fonts: FontOption[] }[] = [
 export const FONT_OPTIONS: FontOption[] = FONT_CATEGORIES.flatMap(c => c.fonts);
 
 export const PRESET_COLORS = {
-    bg: ['transparent', '#FFFFFF', '#F9FAFB', '#F3F4F6', '#111827', '#FECACA', '#BFDBFE'],
-    text: ['#111827', '#6B7280', '#FFFFFF', '#9CA3AF', '#BE123C', '#1D4ED8'],
-    border: ['transparent', '#E5E7EB', '#D1D5DB', '#9CA3AF', '#374151', '#FCA5A5', '#93C5FD'],
-    block: ['transparent', '#F9FAFB', '#FFFFFF', '#E5E7EB', '#1F2937', '#FEE2E2', '#DBEAFE'],
-    strikethrough: ['#EF4444', '#FFFFFF', '#9CA3AF', '#6B7280', '#111827'],
+    bg: ['transparent', '#000000', '#FFFFFF', '#0a296b', '#3b2104'],
+    text: ['#000000', '#d2d4d9', '#FFFFFF', '#a1d6d5', '#a9d6a1'],
+    border: ['transparent', '#000000', '#FFFFFF', '#806fbf', '#6fbf9a'],
+    block: ['transparent', '#000000', '#FFFFFF', '#b1d9e0', '#b8f2d7'],
+    strikethrough: ['#000000', '#d2d4d9', '#FFFFFF', '#dbc602', '#c2002d'],
     status: [
-        '#EF4444', // Red
-        '#FBBF24', // Yellow
-        '#22C55E', // Green
+        '#c2002d', // Red
+        '#dbc602', // Yellow
+        '#b8f2d7', // Green
         '#111827', // Black
         '#FFFFFF', // White
         '#6B7280', // Gray
