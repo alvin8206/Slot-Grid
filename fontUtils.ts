@@ -1,5 +1,4 @@
 // utils/fontUtils.ts
-import { getPrimaryFamily } from './fonts';
 
 interface FontOption {
   id: string;

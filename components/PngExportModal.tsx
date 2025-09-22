@@ -10,7 +10,6 @@ import { SettingsPanels, ExportCompletionView } from './PngExportModal.ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colorToRgba } from '../utils';
 import type { WeekStartDay } from '../App';
-import { getPrimaryFamily } from '../fonts';
 
 // The htmlToImage library is loaded via CDN and available on the window object.
 declare const htmlToImage: any;
@@ -183,7 +182,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             // This is the crucial step to fix the mobile race condition.
             // We explicitly wait for the browser to confirm all required font weights are loaded.
             setLoadingMessage('同步字體引擎...');
-            const primaryFontFamily = getPrimaryFamily(selectedFont.id);
+            const primaryFontFamily = selectedFont.familyName;
             const loadPromises = selectedFont.weights.map(weight =>
                 document.fonts.load(`${weight} 1em "${primaryFontFamily}"`)
             );

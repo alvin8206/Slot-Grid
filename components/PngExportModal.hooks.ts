@@ -1,7 +1,6 @@
 // components/PngExportModal.hooks.ts
 import { useState, useCallback, useLayoutEffect, useRef, useEffect } from 'react';
 import { FontOption, FontStatus } from './PngExportModal.helpers';
-import { getPrimaryFamily } from '../fonts';
 import type { PngDisplayMode } from '../types';
 
 /**
@@ -29,7 +28,7 @@ export const useFontLoader = () => {
         try {
             setFontStatuses(prev => ({ ...prev, [id]: 'loading' }));
             
-            let primaryFontFamily = getPrimaryFamily(id);
+            const primaryFontFamily = fontOption.familyName;
 
             // Step 1: Ensure the font stylesheet is in the document for Google Fonts
             if (!addedLinks.current.has(id)) {
