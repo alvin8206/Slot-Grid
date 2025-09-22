@@ -4,7 +4,7 @@ import type { PngSettingsState, PngStyle, PngDateRange } from '../types';
 import { SpinnerIcon, CheckIcon, ChevronLeftIcon, DownloadIcon, ExternalLinkIcon } from './icons';
 import { FONT_CATEGORIES, PRESET_COLORS } from './PngExportModal.helpers';
 import type { FontStatus, FontOption } from './PngExportModal.helpers';
-import AdvancedColorPicker from './AdvancedColorPicker';
+import AdvancedColorPicker from './AdvancedColorPicker.tsx';
 import AdSlot from './AdSlot';
 
 // --- Reusable UI Components ---
