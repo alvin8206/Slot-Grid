@@ -1,5 +1,6 @@
 // components/PngExportModal.hooks.ts
-import { useState, useCallback, useLayoutEffect, useRef, useEffect } from 'react';
+// FIX: Add the default `React` import to resolve the `Cannot find namespace 'React'` error when using `React.RefObject` type.
+import React, { useState, useCallback, useLayoutEffect, useRef, useEffect } from 'react';
 import { FontOption, FontStatus } from './PngExportModal.helpers';
 import type { PngDisplayMode } from '../types';
 
