@@ -570,7 +570,7 @@ const App: React.FC = () => {
                                                     e.stopPropagation(); 
                                                     handleToggleSlotState(day.date, slot.time); 
                                                 }}
-                                                className={`text-[9px] font-bold px-1 py-1 rounded-md transition-colors leading-none 
+                                                className={`text-[8px] font-bold px-1 py-1 rounded-md transition-colors leading-none 
                                                   ${isDeleteMode ? 'cursor-default' : 'cursor-pointer'}
                                                   ${slot.state === 'available' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800' : 'bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 line-through'}`}
                                             >
