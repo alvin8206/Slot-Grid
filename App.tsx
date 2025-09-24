@@ -556,7 +556,7 @@ const App: React.FC = () => {
                                 </span>
                                 {day.isCurrentMonth && effectiveStatus !== 'available' && effectiveStatus !== 'empty' && (
                                     <div className="flex-grow flex items-center justify-center p-1">
-                                        <span className="text-[8px] font-bold text-gray-500 dark:text-gray-400 text-center" translate="no">{getEffectiveStatus(dayData) === 'empty' ? '' : DAY_STATUS_TEXT_MAP[getEffectiveStatus(dayData)]}</span>
+                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 text-center" translate="no">{getEffectiveStatus(dayData) === 'empty' ? '' : DAY_STATUS_TEXT_MAP[getEffectiveStatus(dayData)]}</span>
                                     </div>
                                 )}
                                 {dayData?.slots && dayData.slots.length > 0 && day.isCurrentMonth && effectiveStatus === 'available' && (
