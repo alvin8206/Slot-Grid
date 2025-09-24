@@ -308,17 +308,33 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             {exportStage === 'configuring' ? (
                 <div className="flex flex-col lg:flex-row gap-6 items-start">
                     <div className="w-full lg:w-1/2 sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pb-4">
-                        <div
-                          ref={previewContainerRef}
-                          className={`
-                            relative w-full rounded-md max-h-[25vh] lg:max-h-[35vh]
-                            flex justify-center items-start overflow-hidden
-                          `}
-                        >
+                        <div className="relative w-full rounded-md">
                             <div
-                              className="absolute inset-0"
+                              className="absolute inset-0 rounded-md"
                               style={{ backgroundImage: checkerboardTheme === 'light' ? lightCheckerboardBg : darkCheckerboardBg }}
                             />
+                            <div
+                              ref={previewContainerRef}
+                              className={`
+                                relative w-full max-h-[25vh] lg:max-h-[35vh]
+                                flex justify-center items-start overflow-y-auto
+                              `}
+                            >
+                                <div 
+                                    ref={scaleWrapperRef} 
+                                    draggable="false" 
+                                    className="relative z-10 touch-none select-none shadow-lg"
+                                    style={{ transition: 'transform 0.2s ease-out', visibility: selectedFontStatus === 'loaded' ? 'visible' : 'hidden' }}
+                                >
+                                    <PngExportContent {...propsForContent} />
+                                </div>
+                                {selectedFontStatus !== 'loaded' && (
+                                    <div className="absolute inset-0 flex items-center justify-center z-20">
+                                        <SpinnerIcon className="w-8 h-8 text-gray-500" />
+                                    </div>
+                                )}
+                            </div>
+                            
                             <div className="absolute top-2 left-2 z-20">
                                 <button
                                     onClick={() => setCheckerboardTheme(t => t === 'light' ? 'dark' : 'light')}
@@ -348,20 +364,6 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                                     <ListIcon className="w-5 h-5"/>
                                 </button>
                             </div>
-
-                            <div 
-                                ref={scaleWrapperRef} 
-                                draggable="false" 
-                                className="relative z-10 touch-none select-none shadow-lg"
-                                style={{ transition: 'transform 0.2s ease-out', visibility: selectedFontStatus === 'loaded' ? 'visible' : 'hidden' }}
-                            >
-                                <PngExportContent {...propsForContent} />
-                            </div>
-                            {selectedFontStatus !== 'loaded' && (
-                                <div className="absolute inset-0 flex items-center justify-center z-20">
-                                    <SpinnerIcon className="w-8 h-8 text-gray-500" />
-                                </div>
-                            )}
                         </div>
                     </div>
                     <div className="w-full lg:w-1/2 space-y-4">
