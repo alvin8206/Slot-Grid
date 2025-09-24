@@ -28,6 +28,11 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
         return baseDayNames;
     }, [language, weekStartsOn]);
 
+    // NEW: Create a non-reordered day names array specifically for list view lookups.
+    const baseDayNamesForList = useMemo(() => {
+        return language === 'zh' ? DAY_NAMES : DAY_NAMES_EN;
+    }, [language]);
+
     // NEW: Dynamically select padding based on the current display mode
     const activePadding = useMemo(() => {
         return pngDisplayMode === 'list' ? padding.list : padding.calendar;
@@ -206,7 +211,8 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                 return (
                                     <div key={dateKey} className="grid grid-cols-3 gap-4 items-start pb-4 border-b" style={{ borderColor: borderColor === 'transparent' ? '#e5e7eb' : borderColor }}>
                                         <div className="col-span-1 font-bold">
-                                            {`${date.getMonth() + 1}/${date.getDate()} (${dayNames[date.getDay()]})`}
+                                            {/* FIX: Use the non-reordered `baseDayNamesForList` to prevent incorrect day name lookup when `weekStartsOn` is 'monday'. */}
+                                            {`${date.getMonth() + 1}/${date.getDate()} (${baseDayNamesForList[date.getDay()]})`}
                                         </div>
                                         <div className="col-span-2 flex flex-wrap gap-x-3 gap-y-1">
                                             {effectiveStatus !== 'available' ? (
