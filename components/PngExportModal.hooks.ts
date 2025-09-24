@@ -99,6 +99,7 @@ export const usePreviewScaling = (
             wrapperNode.style.transform = '';
             wrapperNode.style.height = '';
             wrapperNode.style.transformOrigin = '';
+            wrapperNode.style.width = '';
 
             const containerWidth = containerNode.clientWidth;
             const exportHeight = exportNode.offsetHeight;
@@ -106,6 +107,11 @@ export const usePreviewScaling = (
             if (exportWidth <= 0 || containerWidth <= 0 || exportHeight <= 0) {
                  return;
             }
+
+            // FIX: Explicitly set the wrapper's width to match the export content's width.
+            // This makes the layout calculation predictable before applying the scale transform,
+            // preventing cropping issues on mobile where flexbox might otherwise miscalculate the available space.
+            wrapperNode.style.width = `${exportWidth}px`;
 
             const scale = containerWidth / exportWidth;
             wrapperNode.style.transformOrigin = 'top center';
@@ -130,6 +136,7 @@ export const usePreviewScaling = (
                  wrapperNode.style.height = '';
                  wrapperNode.style.transform = '';
                  wrapperNode.style.transformOrigin = '';
+                 wrapperNode.style.width = '';
             }
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
