@@ -306,7 +306,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
             </div>
 
             {exportStage === 'configuring' ? (
-                <div className="flex flex-col lg:flex-row gap-6 items-start">
+                <div className="flex flex-col lg:flex-row gap-6 items-start min-h-0">
                     <div className="w-full lg:w-1/2 sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pb-4">
                         <div className="relative w-full rounded-md">
                             <div
