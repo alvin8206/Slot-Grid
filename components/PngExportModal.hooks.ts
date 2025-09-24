@@ -97,7 +97,7 @@ export const usePreviewScaling = (
     }
 ) => {
     useLayoutEffect(() => {
-        const { previewContainerRef, scaleWrapperRef, exportRef, exportWidth, displayMode } = options;
+        const { previewContainerRef, scaleWrapperRef, exportRef, exportWidth } = options;
         const containerNode = previewContainerRef.current;
         const wrapperNode = scaleWrapperRef.current;
         const exportNode = exportRef.current;
@@ -123,7 +123,6 @@ export const usePreviewScaling = (
             wrapperNode.style.transformOrigin = '';
 
             const containerWidth = containerNode.clientWidth;
-            const containerHeight = containerNode.clientHeight;
             const exportHeight = exportNode.offsetHeight;
 
             if (exportWidth <= 0 || containerWidth <= 0 || exportHeight <= 0) {
@@ -131,14 +130,13 @@ export const usePreviewScaling = (
             }
 
             // UNIFIED LOGIC: Both calendar and list modes will now scale to width and allow scrolling.
-            // This prevents long lists from becoming unreadably small.
             const scale = containerWidth / exportWidth;
             wrapperNode.style.transformOrigin = 'top center';
             wrapperNode.style.transform = `scale(${scale})`;
             
-            // Set the wrapper's layout height to match the scaled visual height
-            // This prevents the container from reserving the original, unscaled height,
-            // which caused unnecessary scrolling space.
+            // Set the wrapper's layout height to match the scaled visual height.
+            // This is crucial because `transform: scale()` doesn't affect the element's layout box.
+            // By setting the height, we make the parent scroll container aware of the content's full height.
             const scaledHeight = exportHeight * scale;
             wrapperNode.style.height = `${scaledHeight}px`;
         };
@@ -152,6 +150,8 @@ export const usePreviewScaling = (
         const initialTimeout = setTimeout(scheduledUpdate, 100);
         const resizeObserver = new ResizeObserver(scheduledUpdate);
         resizeObserver.observe(containerNode);
+        // Also observe the export node itself in case its content changes (e.g., list gets longer)
+        resizeObserver.observe(exportNode);
 
         return () => {
             clearTimeout(initialTimeout);
