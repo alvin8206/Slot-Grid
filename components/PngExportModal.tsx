@@ -317,7 +317,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                               ref={previewContainerRef}
                               className={`
                                 relative w-full max-h-[25vh] lg:max-h-[35vh]
-                                flex justify-center items-start overflow-y-auto
+                                flex justify-center items-start overflow-y-auto overflow-x-hidden
                               `}
                             >
                                 <div 
