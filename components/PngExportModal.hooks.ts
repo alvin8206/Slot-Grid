@@ -66,23 +66,8 @@ export const useFontLoader = () => {
 
 
 /**
- * A debounced function executor.
- */
-function debounce<F extends (...args: any[]) => any>(func: F, wait: number): (...args: Parameters<F>) => void {
-    let timeout: ReturnType<typeof setTimeout> | null;
-    return function(this: any, ...args: Parameters<F>) {
-        const context = this;
-        if (timeout) clearTimeout(timeout);
-        timeout = setTimeout(() => {
-            timeout = null;
-            func.apply(context, args);
-        }, wait);
-    };
-}
-
-/**
  * A robust hook to manage the scaling of a preview element to fit its container.
- * It incorporates debouncing, double requestAnimationFrame, and guards against edge cases.
+ * It now calculates the scale once and avoids using ResizeObserver to prevent jumps on mobile scroll.
  */
 export const usePreviewScaling = (
     isOpen: boolean,
@@ -102,11 +87,7 @@ export const usePreviewScaling = (
         const wrapperNode = scaleWrapperRef.current;
         const exportNode = exportRef.current;
 
-        if (!isOpen || !containerNode || !wrapperNode || !exportNode) {
-            return;
-        }
-
-        if (selectedFontStatus !== 'loaded') {
+        if (!isOpen || !containerNode || !wrapperNode || !exportNode || selectedFontStatus !== 'loaded') {
             return;
         }
         
@@ -115,11 +96,8 @@ export const usePreviewScaling = (
                 return;
             }
             
-            // Reset inline styles before recalculating
             wrapperNode.style.transform = '';
             wrapperNode.style.height = '';
-            wrapperNode.style.marginLeft = '';
-            wrapperNode.style.marginTop = '';
             wrapperNode.style.transformOrigin = '';
 
             const containerWidth = containerNode.clientWidth;
@@ -129,38 +107,28 @@ export const usePreviewScaling = (
                  return;
             }
 
-            // UNIFIED LOGIC: Both calendar and list modes will now scale to width and allow scrolling.
             const scale = containerWidth / exportWidth;
             wrapperNode.style.transformOrigin = 'top center';
             wrapperNode.style.transform = `scale(${scale})`;
             
-            // Set the wrapper's layout height to match the scaled visual height.
-            // This is crucial because `transform: scale()` doesn't affect the element's layout box.
-            // By setting the height, we make the parent scroll container aware of the content's full height.
             const scaledHeight = exportHeight * scale;
             wrapperNode.style.height = `${scaledHeight}px`;
         };
 
-        const scheduledUpdate = debounce(() => {
+        // Run the calculation after a couple of frames to ensure the DOM is ready.
+        // This replaces the ResizeObserver to provide a stable, non-jumping scale.
+        const timer = setTimeout(() => {
             requestAnimationFrame(() => {
                 requestAnimationFrame(updatePreviewLayout);
             });
-        }, 50);
+        }, 100);
 
-        const initialTimeout = setTimeout(scheduledUpdate, 100);
-        const resizeObserver = new ResizeObserver(scheduledUpdate);
-        resizeObserver.observe(containerNode);
-        // Also observe the export node itself in case its content changes (e.g., list gets longer)
-        resizeObserver.observe(exportNode);
 
         return () => {
-            clearTimeout(initialTimeout);
-            resizeObserver.disconnect();
+            clearTimeout(timer);
             if (wrapperNode) {
                  wrapperNode.style.height = '';
                  wrapperNode.style.transform = '';
-                 wrapperNode.style.marginLeft = '';
-                 wrapperNode.style.marginTop = '';
                  wrapperNode.style.transformOrigin = '';
             }
         };
