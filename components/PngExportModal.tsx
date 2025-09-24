@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ScheduleData, CalendarDay, PngSettingsState, PngDisplayMode, PngDateRange } from '../types';
-import { DownloadIcon, SpinnerIcon, CalendarIcon, ListIcon } from './icons';
+import { DownloadIcon, SpinnerIcon, CalendarIcon, ListIcon, LightbulbIcon } from './icons';
 import Modal from './Modal';
 import PngExportContent from './PngExportContent';
 import { embedFontForExport } from '../fontUtils';
@@ -51,9 +51,11 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     const [exportStage, setExportStage] = useState<ExportStage>('configuring');
     const [generatedPngDataUrl, setGeneratedPngDataUrl] = useState<string | null>(null);
     const [loadingMessage, setLoadingMessage] = useState('');
+    const [checkerboardTheme, setCheckerboardTheme] = useState<'light' | 'dark'>('light');
 
-    // NEW: Define a memoized checkerboard background for the preview area
-    const checkerboardBg = useMemo(() => "url('data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"%3E%3Crect x=\"0\" y=\"0\" width=\"16\" height=\"16\" fill=\"%23ffffff\"/%3E%3Crect x=\"0\" y=\"0\" width=\"8\" height=\"8\" fill=\"%23e5e5e5\"/%3E%3Crect x=\"8\" y=\"8\" width=\"8\" height=\"8\" fill=\"%23e5e5e5\"/%3E%3C/svg%3E')", []);
+    // NEW: Define memoized checkerboard backgrounds for both light and dark themes.
+    const lightCheckerboardBg = useMemo(() => "url('data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"%3E%3Crect x=\"0\" y=\"0\" width=\"16\" height=\"16\" fill=\"%23ffffff\"/%3E%3Crect x=\"0\" y=\"0\" width=\"8\" height=\"8\" fill=\"%23e5e5e5\"/%3E%3Crect x=\"8\" y=\"8\" width=\"8\" height=\"8\" fill=\"%23e5e5e5\"/%3E%3C/svg%3E')", []);
+    const darkCheckerboardBg = useMemo(() => "url('data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"%3E%3Crect x=\"0\" y=\"0\" width=\"16\" height=\"16\" fill=\"%234b5563\"/%3E%3Crect x=\"0\" y=\"0\" width=\"8\" height=\"8\" fill=\"%23374151\"/%3E%3Crect x=\"8\" y=\"8\" width=\"8\" height=\"8\" fill=\"%23374151\"/%3E%3C/svg%3E')", []);
 
     const updateSetting = <K extends keyof PngSettingsState>(key: K, value: PngSettingsState[K]) => {
         setPngSettings(prev => {
@@ -310,10 +312,24 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                           ref={previewContainerRef}
                           className={`
                             relative w-full rounded-md max-h-[25vh] lg:max-h-[35vh]
-                            flex justify-center items-start overflow-y-auto overflow-x-hidden
+                            flex justify-center items-start overflow-hidden
                           `}
-                          style={{ backgroundImage: checkerboardBg }}
                         >
+                            <div
+                              className="absolute inset-0"
+                              style={{ backgroundImage: checkerboardTheme === 'light' ? lightCheckerboardBg : darkCheckerboardBg }}
+                            />
+                            <div className="absolute top-2 left-2 z-20">
+                                <button
+                                    onClick={() => setCheckerboardTheme(t => t === 'light' ? 'dark' : 'light')}
+                                    className={`p-1.5 rounded-md transition-colors bg-gray-200/80 dark:bg-gray-900/80 backdrop-blur-sm hover:bg-white/80 dark:hover:bg-gray-500/80`}
+                                    title="切換預覽背景"
+                                    aria-label="Toggle preview background theme"
+                                >
+                                    <LightbulbIcon className={`w-5 h-5 transition-colors ${checkerboardTheme === 'dark' ? 'text-yellow-400' : 'text-gray-500 dark:text-gray-400'}`} />
+                                </button>
+                            </div>
+
                             <div className="absolute top-2 right-2 z-20 bg-gray-200/80 dark:bg-gray-900/80 backdrop-blur-sm p-1 rounded-lg flex items-center gap-1">
                                 <button
                                     onClick={() => updateSetting('pngDisplayMode', 'calendar')}
@@ -336,13 +352,13 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                             <div 
                                 ref={scaleWrapperRef} 
                                 draggable="false" 
-                                className="touch-none select-none"
+                                className="relative z-10 touch-none select-none shadow-lg"
                                 style={{ transition: 'transform 0.2s ease-out', visibility: selectedFontStatus === 'loaded' ? 'visible' : 'hidden' }}
                             >
                                 <PngExportContent {...propsForContent} />
                             </div>
                             {selectedFontStatus !== 'loaded' && (
-                                <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="absolute inset-0 flex items-center justify-center z-20">
                                     <SpinnerIcon className="w-8 h-8 text-gray-500" />
                                 </div>
                             )}
