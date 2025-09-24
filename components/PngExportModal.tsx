@@ -52,6 +52,9 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
     const [generatedPngDataUrl, setGeneratedPngDataUrl] = useState<string | null>(null);
     const [loadingMessage, setLoadingMessage] = useState('');
 
+    // NEW: Define a memoized checkerboard background for the preview area
+    const checkerboardBg = useMemo(() => "url('data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"%3E%3Crect x=\"0\" y=\"0\" width=\"16\" height=\"16\" fill=\"%23ffffff\"/%3E%3Crect x=\"0\" y=\"0\" width=\"8\" height=\"8\" fill=\"%23e5e5e5\"/%3E%3Crect x=\"8\" y=\"8\" width=\"8\" height=\"8\" fill=\"%23e5e5e5\"/%3E%3C/svg%3E')", []);
+
     const updateSetting = <K extends keyof PngSettingsState>(key: K, value: PngSettingsState[K]) => {
         setPngSettings(prev => {
             const newState = { ...prev, [key]: value };
@@ -306,9 +309,10 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                         <div
                           ref={previewContainerRef}
                           className={`
-                            relative w-full bg-gray-200/50 dark:bg-gray-700/50 rounded-md max-h-[25vh] lg:max-h-[35vh]
+                            relative w-full rounded-md max-h-[25vh] lg:max-h-[35vh]
                             flex justify-center items-start overflow-y-auto overflow-x-hidden
                           `}
+                          style={{ backgroundImage: checkerboardBg }}
                         >
                             <div className="absolute top-2 right-2 z-20 bg-gray-200/80 dark:bg-gray-900/80 backdrop-blur-sm p-1 rounded-lg flex items-center gap-1">
                                 <button
