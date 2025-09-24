@@ -323,7 +323,7 @@ const PngExportModal: React.FC<PngExportModalProps> = ({
                                 <div 
                                     ref={scaleWrapperRef} 
                                     draggable="false" 
-                                    className="relative z-10 touch-none select-none shadow-lg"
+                                    className="relative z-10 select-none shadow-lg"
                                     style={{ transition: 'transform 0.2s ease-out', visibility: selectedFontStatus === 'loaded' ? 'visible' : 'hidden' }}
                                 >
                                     <PngExportContent {...propsForContent} />
