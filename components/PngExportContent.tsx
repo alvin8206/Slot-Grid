@@ -257,7 +257,7 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                         </p>
                                         {day.isCurrentMonth && effectiveStatus !== 'available' && effectiveStatus !== 'empty' && (
                                             <div className="flex-grow flex items-center justify-center">
-                                                <span className="font-bold" style={{ fontSize: '1.1em', color: getStatusColor(effectiveStatus) }}>{getStatusText(effectiveStatus, language)}</span>
+                                                <span className="font-bold" style={{ fontSize: '1.1em', color: getStatusColor(effectiveStatus), textAlign: 'center' }}>{getStatusText(effectiveStatus, language)}</span>
                                             </div>
                                         )}
                                         {day.isCurrentMonth && effectiveStatus === 'available' && dayData?.slots && dayData.slots.length > 0 && (
