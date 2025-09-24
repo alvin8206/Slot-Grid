@@ -127,7 +127,7 @@ export const usePreviewScaling = (
             requestAnimationFrame(() => {
                 requestAnimationFrame(updatePreviewLayout);
             });
-        }, 100);
+        }, 0);
 
 
         return () => {
