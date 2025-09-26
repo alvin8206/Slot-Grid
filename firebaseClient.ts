@@ -4,6 +4,13 @@
 // Declare firebase as a global variable to inform TypeScript that it's loaded from the CDN.
 declare const firebase: any;
 
+// Make window typings aware of the App Check debug token property.
+declare global {
+  interface Window {
+    FIREBASE_APPCHECK_DEBUG_TOKEN: boolean | string | undefined;
+  }
+}
+
 // Your web app's Firebase configuration.
 const firebaseConfig = {
   apiKey: "AIzaSyAMnMroWsCKPquFMEKTA_rq2LDyISSuVhs",
@@ -19,6 +26,7 @@ let app: any;
 let auth: any;
 let db: any;
 let googleProvider: any;
+let appCheck: any; // NEW: Add handle for App Check
 
 // 只要 config 有 key 就視為已設定（避免把合法的 "AIzaSy..." 當作占位）
 export const isFirebaseConfigured: boolean = !!firebaseConfig.apiKey;
@@ -35,6 +43,33 @@ if (isFirebaseConfigured) {
     auth = firebase.auth();
     db = firebase.firestore();
     googleProvider = new firebase.auth.GoogleAuthProvider();
+
+    // NEW: Initialize Firebase App Check
+    try {
+      if (firebase.appCheck) {
+        // --- IMPORTANT: App Check Debug Token for Development ---
+        // To test App Check in a local or sandboxed environment (like AI Studio),
+        // reCAPTCHA verification can fail. We enable debug mode to bypass this.
+        // The SDK will automatically generate a debug token and print it to the
+        // browser console. For production, this line should be set to `false`.
+        window.self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+        // --------------------------------------------------------
+
+        appCheck = firebase.appCheck(app);
+        
+        // IMPORTANT: Replace this placeholder with your actual reCAPTCHA v3 site key.
+        appCheck.activate(
+          '6Lde-dUrAAAAAFt-cqE994VwH89tGiRDigp4105w',
+          true // isTokenAutoRefreshEnabled
+        );
+        console.log("Firebase App Check with reCAPTCHA v3 activated in debug mode.");
+      } else {
+        console.warn("Firebase App Check SDK not found. Skipping initialization.");
+      }
+    } catch (e) {
+      console.error("Firebase App Check initialization failed:", e);
+    }
+
 
     // ---------- IMPORTANT: Firestore transport fallback ----------
     // In sandbox/iframe (e.g., AI Studio preview) the streaming channel may be blocked.
@@ -68,4 +103,4 @@ if (isFirebaseConfigured) {
   console.warn("Firebase is not configured. Please replace placeholder values in firebaseClient.ts. App will run in local-only mode.");
 }
 
-export { app, auth, db, googleProvider };
+export { app, auth, db, googleProvider, appCheck };
