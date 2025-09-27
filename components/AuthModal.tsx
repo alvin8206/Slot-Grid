@@ -4,6 +4,10 @@ import Modal from './Modal';
 import { GoogleIcon } from './icons';
 import { auth, googleProvider } from '../firebaseClient';
 
+// 由於 Firebase SDK 是透過 CDN 載入的，我們需要告訴 TypeScript 全域 `firebase` 物件的存在
+// 以便我們能存取 `firebase.auth.Auth.Persistence.LOCAL` 這個常數。
+declare const firebase: any;
+
 interface AuthModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -28,14 +32,21 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         setIsLoading(true);
         setError(null);
         try {
-            // 改為使用 signInWithRedirect，頁面將會跳轉至 Google 登入頁。
-            // 登入成功後，使用者會被導回您的應用程式，
-            // 而 App.tsx 中的 onAuthStateChanged 監聽器將會處理後續的登入狀態更新。
+            // --- FIX ---
+            // 在啟動重新導向之前，明確地將持久性設定為 LOCAL (使用 localStorage)。
+            // 這可以確保 Firebase 在儲存分區的環境中，能夠可靠地在重新導向後恢復驗證狀態。
+            await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+            
+            // 現在才啟動重新導向流程。
             await auth.signInWithRedirect(googleProvider);
-            // 注意：因為頁面會跳轉，下方的 onClose() 和 setIsLoading(false) 在成功時不會被執行。
+            
         } catch (err: any) {
             // 這個 catch 區塊只會在重新導向的啟動過程本身失敗時執行。
-            setError(err.message);
+            if (err.code === 'auth/operation-not-supported-in-this-environment') {
+                setError("此瀏覽器環境不支援此登入方式，請嘗試其他瀏覽器或停用無痕模式。");
+            } else {
+                setError(err.message);
+            }
             setIsLoading(false);
         }
     };
@@ -45,6 +56,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         setIsLoading(true);
         setError(null);
         try {
+            // 同樣為郵件登入設定持久性
+            await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
             if (isRegistering) {
                 await auth.createUserWithEmailAndPassword(email, password);
             } else {
