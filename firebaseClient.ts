@@ -4,13 +4,6 @@
 // Declare firebase as a global variable to inform TypeScript that it's loaded from the CDN.
 declare const firebase: any;
 
-// Make window typings aware of the App Check debug token property.
-declare global {
-  interface Window {
-    FIREBASE_APPCHECK_DEBUG_TOKEN: boolean | string | undefined;
-  }
-}
-
 // =================================================================================
 // TODO: Replace these placeholder values with your actual Firebase project's configuration.
 // You can find this in your Firebase project settings.
@@ -29,7 +22,6 @@ let app: any;
 let auth: any;
 let db: any;
 let googleProvider: any;
-let appCheck: any; // NEW: Add handle for App Check
 
 // 只要 config 有 key 就視為已設定（避免把合法的 "AIzaSy..." 當作占位）
 export const isFirebaseConfigured: boolean = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
@@ -46,43 +38,10 @@ if (isFirebaseConfigured) {
     auth = firebase.auth();
     db = firebase.firestore();
     googleProvider = new firebase.auth.GoogleAuthProvider();
-
-    // NEW: Initialize Firebase App Check
-    try {
-      if (firebase.appCheck) {
-        // --- CRITICAL SECURITY FIX ---
-        // Use a runtime check based on the hostname to determine if we are in production.
-        // The App Check debug token should only be enabled for development/preview environments.
-        const isProduction = window.location.hostname === 'slot-grid.web.app';
-
-        if (!isProduction) {
-          console.warn(
-            "App Check debug mode is enabled on a non-production domain. This is expected for development and preview environments."
-          );
-          window.self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-        }
-        // -----------------------------
-
-        appCheck = firebase.appCheck(app);
-        
-        // =================================================================================
-        // !! 最終關鍵步驟 !! 已根據您提供的截圖填入金鑰。
-        //
-        // 提醒：如果登入仍然失敗，請確認您建立的是「reCAPTCHA v3」金鑰，
-        // 而非「reCAPTCHA Enterprise」金鑰。
-        // =================================================================================
-        appCheck.activate(
-          '6Ld9WtYrAAAAAE6iFTDKwzubMKgc7PBeKLXsp4q6', // <-- 已根據您提供的截圖更新金鑰
-          true // isTokenAutoRefreshEnabled
-        );
-        console.log(`Firebase App Check with reCAPTCHA v3 activated. Production mode: ${isProduction}`);
-      } else {
-        console.warn("Firebase App Check SDK not found. Skipping initialization.");
-      }
-    } catch (e) {
-      console.error("Firebase App Check initialization failed:", e);
-    }
-
+    
+    // REMOVED: The entire Firebase App Check initialization block has been removed as per your request.
+    // This will disable reCAPTCHA verification and should resolve the login issues caused by its misconfiguration.
+    // Please be aware that this also removes a security layer that protects against abuse.
 
     // ---------- IMPORTANT: Firestore transport fallback ----------
     // In sandbox/iframe (e.g., AI Studio preview) the streaming channel may be blocked.
@@ -116,4 +75,4 @@ if (isFirebaseConfigured) {
   console.warn("Firebase is not configured. Please replace placeholder values in firebaseClient.ts. App will run in local-only mode.");
 }
 
-export { app, auth, db, googleProvider, appCheck };
+export { app, auth, db, googleProvider };

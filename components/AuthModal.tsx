@@ -32,23 +32,28 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         setIsLoading(true);
         setError(null);
         try {
-            // --- FIX ---
-            // 在啟動重新導向之前，明確地將持久性設定為 LOCAL (使用 localStorage)。
-            // 這可以確保 Firebase 在儲存分區的環境中，能夠可靠地在重新導向後恢復驗證狀態。
-            await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-            
-            // 現在才啟動重新導向流程。
-            await auth.signInWithRedirect(googleProvider);
-            
+            // REVERTED: Switched back to signInWithPopup as signInWithRedirect is not supported
+            // in the sandboxed environment, causing the "operation-not-supported" error.
+            await auth.signInWithPopup(googleProvider);
+            // On success, the onAuthStateChanged listener will fire and update the app state.
+            // We can now close the modal.
+            onClose();
         } catch (err: any) {
-            // 這個 catch 區塊只會在重新導向的啟動過程本身失敗時執行。
-            if (err.code === 'auth/operation-not-supported-in-this-environment') {
-                setError("此瀏覽器環境不支援此登入方式，請嘗試其他瀏覽器或停用無痕模式。");
+            // Add specific error handling for common popup issues.
+            if (err.code === 'auth/popup-blocked') {
+                setError("彈出視窗被瀏覽器攔截了。請在瀏覽器設定中，允許此網站的彈出視窗後再試一次。");
+            } else if (err.code === 'auth/popup-closed-by-user') {
+                // This isn't a true error; the user just closed the window.
+                // No need to show a scary error message.
+                console.log("Login popup closed by user.");
+            } else if (err.code === 'auth/operation-not-supported-in-this-environment') {
+                 setError("此瀏覽器環境不支援此登入方式，請嘗試其他瀏覽器或停用無痕模式。");
             } else {
                 setError(err.message);
             }
             setIsLoading(false);
         }
+        // Do not set isLoading to false on success, as the modal will be closing.
     };
     
     const handleEmailAuth = async (e: React.FormEvent) => {
@@ -56,7 +61,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         setIsLoading(true);
         setError(null);
         try {
-            // 同樣為郵件登入設定持久性
+            // Set persistence for email auth
             await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
             if (isRegistering) {
                 await auth.createUserWithEmailAndPassword(email, password);

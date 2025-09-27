@@ -149,20 +149,11 @@ const App: React.FC = () => {
             return;
         }
 
-        // --- FIX: Proactively check for redirect result on app load. ---
-        // This is crucial for signInWithRedirect to work reliably in all environments.
-        auth.getRedirectResult()
-            .then((result: any) => {
-                // If result is not null, it means the user just came back from a redirect.
-                // onAuthStateChanged will handle the user state update, but we can log it here.
-                if (result && result.user) {
-                    console.log("Successfully handled redirect result for user:", result.user.displayName);
-                }
-            })
-            .catch((error: any) => {
-                // This can happen if the user closes the login window or on other errors.
-                console.error("Error processing redirect result:", error);
-            });
+        // REMOVED: The auth.getRedirectResult() block was removed.
+        // It was causing the "operation-not-supported-in-this-environment" error
+        // because the redirect flow is incompatible with the sandboxed environment.
+        // The onAuthStateChanged listener below is sufficient for handling all auth states,
+        // including successful pop-up logins.
         
         const unsubscribe = auth.onAuthStateChanged((user: User | null) => {
             setUser(user);
