@@ -1,14 +1,6 @@
 // This file configures the Firebase services for the application.
 // Firebase SDK is loaded via CDN in index.html (compat build).
 
-// FIX: Add type definition for import.meta.env to resolve TypeScript error `Property 'env' does not exist on type 'ImportMeta'`.
-// Vite exposes environment variables on this object.
-interface ImportMeta {
-  readonly env: {
-    readonly DEV: boolean;
-  };
-}
-
 // Declare firebase as a global variable to inform TypeScript that it's loaded from the CDN.
 declare const firebase: any;
 
@@ -56,12 +48,14 @@ if (isFirebaseConfigured) {
     try {
       if (firebase.appCheck) {
         // --- CRITICAL SECURITY FIX ---
-        // The debug token provides a backdoor to bypass App Check's real verification.
-        // It MUST only be enabled in a development environment.
-        // `import.meta.env.DEV` is a Vite-specific environment variable that is `true`
-        // during development (`npm run dev`) and `false` in the production build (`npm run build`).
-        if (import.meta.env.DEV) {
-          console.warn("App Check debug mode is enabled. This should NOT be present in production.");
+        // Use a runtime check based on the hostname to determine if we are in production.
+        // The App Check debug token should only be enabled for development/preview environments.
+        const isProduction = window.location.hostname === 'slot-grid.web.app';
+
+        if (!isProduction) {
+          console.warn(
+            "App Check debug mode is enabled on a non-production domain. This is expected for development and preview environments."
+          );
           window.self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
         }
         // -----------------------------
@@ -73,7 +67,7 @@ if (isFirebaseConfigured) {
           '6Lde-dUrAAAAAFt-cqE994VwH89tGiRDigp4105w',
           true // isTokenAutoRefreshEnabled
         );
-        console.log("Firebase App Check with reCAPTCHA v3 activated.");
+        console.log(`Firebase App Check with reCAPTCHA v3 activated. Production mode: ${isProduction}`);
       } else {
         console.warn("Firebase App Check SDK not found. Skipping initialization.");
       }
