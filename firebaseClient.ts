@@ -66,14 +66,13 @@ if (isFirebaseConfigured) {
         appCheck = firebase.appCheck(app);
         
         // =================================================================================
-        // TODO: Replace this placeholder with your actual reCAPTCHA v3 site key.
-        // 1. Go to the Google Cloud Console -> "reCAPTCHA Enterprise".
-        // 2. Create a new key for this site.
-        // 3. Add your production domain (e.g., slot-grid.web.app) and any development domains.
-        // 4. Copy the "Site Key" and paste it below.
+        // !! 最終關鍵步驟 !! 已根據您提供的截圖填入金鑰。
+        //
+        // 提醒：如果登入仍然失敗，請確認您建立的是「reCAPTCHA v3」金鑰，
+        // 而非「reCAPTCHA Enterprise」金鑰。
         // =================================================================================
         appCheck.activate(
-          '6Lde-dUrAAAAAFt-cqE994VwH89tGiRDigp4105w', // <-- PASTE YOUR REAL RECAPTCHA KEY HERE
+          '6Ld9WtYrAAAAAE6iFTDKwzubMKgc7PBeKLXsp4q6', // <-- 已根據您提供的截圖更新金鑰
           true // isTokenAutoRefreshEnabled
         );
         console.log(`Firebase App Check with reCAPTCHA v3 activated. Production mode: ${isProduction}`);
