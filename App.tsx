@@ -148,10 +148,27 @@ const App: React.FC = () => {
             setAuthStatus('anonymous');
             return;
         }
+
+        // --- FIX: Proactively check for redirect result on app load. ---
+        // This is crucial for signInWithRedirect to work reliably in all environments.
+        auth.getRedirectResult()
+            .then((result: any) => {
+                // If result is not null, it means the user just came back from a redirect.
+                // onAuthStateChanged will handle the user state update, but we can log it here.
+                if (result && result.user) {
+                    console.log("Successfully handled redirect result for user:", result.user.displayName);
+                }
+            })
+            .catch((error: any) => {
+                // This can happen if the user closes the login window or on other errors.
+                console.error("Error processing redirect result:", error);
+            });
+        
         const unsubscribe = auth.onAuthStateChanged((user: User | null) => {
             setUser(user);
             setAuthStatus(user ? 'authenticated' : 'anonymous');
         });
+
         return () => unsubscribe();
     }, []);
 

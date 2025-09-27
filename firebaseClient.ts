@@ -11,9 +11,12 @@ declare global {
   }
 }
 
-// Your web app's Firebase configuration.
+// =================================================================================
+// TODO: Replace these placeholder values with your actual Firebase project's configuration.
+// You can find this in your Firebase project settings.
+// =================================================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyAMnMroWsCKPquFMEKTA_rq2LDyISSuVhs",
+  apiKey: "AIzaSyAMnMroWsCKPquFMEKTA_rq2LDyISSuVhs", // <-- PASTE YOUR REAL API KEY HERE
   authDomain: "slot-grid.firebaseapp.com",
   projectId: "slot-grid",
   storageBucket: "slot-grid.firebasestorage.app",
@@ -29,7 +32,7 @@ let googleProvider: any;
 let appCheck: any; // NEW: Add handle for App Check
 
 // 只要 config 有 key 就視為已設定（避免把合法的 "AIzaSy..." 當作占位）
-export const isFirebaseConfigured: boolean = !!firebaseConfig.apiKey;
+export const isFirebaseConfigured: boolean = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
 
 if (isFirebaseConfigured) {
   try {
@@ -62,9 +65,15 @@ if (isFirebaseConfigured) {
 
         appCheck = firebase.appCheck(app);
         
-        // IMPORTANT: Replace this placeholder with your actual reCAPTCHA v3 site key.
+        // =================================================================================
+        // TODO: Replace this placeholder with your actual reCAPTCHA v3 site key.
+        // 1. Go to the Google Cloud Console -> "reCAPTCHA Enterprise".
+        // 2. Create a new key for this site.
+        // 3. Add your production domain (e.g., slot-grid.web.app) and any development domains.
+        // 4. Copy the "Site Key" and paste it below.
+        // =================================================================================
         appCheck.activate(
-          '6Lde-dUrAAAAAFt-cqE994VwH89tGiRDigp4105w',
+          '6Lde-dUrAAAAAFt-cqE994VwH89tGiRDigp4105w', // <-- PASTE YOUR REAL RECAPTCHA KEY HERE
           true // isTokenAutoRefreshEnabled
         );
         console.log(`Firebase App Check with reCAPTCHA v3 activated. Production mode: ${isProduction}`);
