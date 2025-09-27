@@ -179,8 +179,9 @@ const App: React.FC = () => {
                         if (data) {
                             setScheduleData(data.schedule || {});
                             setTitle(data.title || "可預約時段");
-                            setTextExportSettings(prev => ({ ...prev, ...(data.textExportSettings || {}) }));
-                            setPngSettings(prev => ({ ...prev, ...(data.pngSettings || {}) }));
+                            // FIX: Merge Firestore data with defaults to ensure data structure consistency.
+                            setTextExportSettings(prev => ({ ...defaultTextExportSettings, ...(data.textExportSettings || {}) }));
+                            setPngSettings(prev => ({ ...defaultPngSettings, ...(data.pngSettings || {}) }));
                             setAppSettings(prev => ({ ...prev, ...(data.appSettings || {}) }));
                         }
                     }
@@ -195,14 +196,25 @@ const App: React.FC = () => {
                     const localTitle = localStorage.getItem('scheduleTitle');
                     if (localTitle) setTitle(localTitle);
                     
+                    // FIX: Merged localStorage settings with defaults to prevent crashes from old data structures.
+                    // This is the primary fix for the blank PNG modal issue for anonymous users.
                     const localTextSettings = localStorage.getItem('textExportSettings');
-                    if (localTextSettings) setTextExportSettings(JSON.parse(localTextSettings));
+                    if (localTextSettings) {
+                        const parsed = JSON.parse(localTextSettings);
+                        setTextExportSettings(prev => ({ ...defaultTextExportSettings, ...parsed }));
+                    }
 
                     const localPngSettings = localStorage.getItem('pngSettings');
-                    if (localPngSettings) setPngSettings(JSON.parse(localPngSettings));
+                    if (localPngSettings) {
+                        const parsed = JSON.parse(localPngSettings);
+                        setPngSettings(prev => ({ ...defaultPngSettings, ...parsed }));
+                    }
 
                     const localAppSettings = localStorage.getItem('appSettings');
-                    if (localAppSettings) setAppSettings(JSON.parse(localAppSettings));
+                    if (localAppSettings) {
+                        const parsed = JSON.parse(localAppSettings);
+                        setAppSettings(prev => ({ ...prev, ...parsed }));
+                    }
                 } catch (error) {
                     console.error("Failed to parse local storage data:", error);
                     localStorage.clear();
