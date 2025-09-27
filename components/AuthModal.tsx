@@ -28,11 +28,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         setIsLoading(true);
         setError(null);
         try {
-            await auth.signInWithPopup(googleProvider);
-            onClose();
+            // 改為使用 signInWithRedirect，頁面將會跳轉至 Google 登入頁。
+            // 登入成功後，使用者會被導回您的應用程式，
+            // 而 App.tsx 中的 onAuthStateChanged 監聽器將會處理後續的登入狀態更新。
+            await auth.signInWithRedirect(googleProvider);
+            // 注意：因為頁面會跳轉，下方的 onClose() 和 setIsLoading(false) 在成功時不會被執行。
         } catch (err: any) {
+            // 這個 catch 區塊只會在重新導向的啟動過程本身失敗時執行。
             setError(err.message);
-        } finally {
             setIsLoading(false);
         }
     };
