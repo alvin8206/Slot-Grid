@@ -48,6 +48,14 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
         setTextExportSettings(prev => ({ ...prev, [key]: value }));
     };
     
+    const handleShowBookedChange = (checked: boolean) => {
+        updateSetting('showBooked', checked);
+        if (!checked) {
+            // When hiding booked slots, also hide fully booked days.
+            updateSetting('showFullyBooked', false);
+        }
+    };
+
     const generatedText = useMemo(() => {
         let text = '';
         if (includeTitle) {
@@ -228,11 +236,12 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
       label: string;
       checked: boolean;
       onChange: (checked: boolean) => void;
-    }> = ({ id, label, checked, onChange }) => (
-      <label htmlFor={id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 cursor-pointer">
+      disabled?: boolean;
+    }> = ({ id, label, checked, onChange, disabled = false }) => (
+      <label htmlFor={id} className={`flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
         <div className="relative">
-          <input type="checkbox" id={id} className="sr-only peer" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+          <input type="checkbox" id={id} className="sr-only peer" checked={checked} onChange={(e) => !disabled && onChange(e.target.checked)} disabled={disabled} />
           <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-blue-600 transition"></div>
           <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform peer-checked:translate-x-full"></div>
         </div>
@@ -313,9 +322,9 @@ const TextExportModal: React.FC<TextExportModalProps> = ({
                       <ToggleSwitch id="show-month" label="顯示月份" checked={showMonth} onChange={c => updateSetting('showMonth', c)} />
                       <ToggleSwitch id="show-day-of-week" label="顯示星期" checked={showDayOfWeek} onChange={c => updateSetting('showDayOfWeek', c)} />
                       <ToggleSwitch id="show-day-off" label="顯示休假日" checked={showDayOff} onChange={c => updateSetting('showDayOff', c)} />
-                      <ToggleSwitch id="show-fully-booked" label="顯示已額滿日" checked={showFullyBooked} onChange={c => updateSetting('showFullyBooked', c)} />
                       <ToggleSwitch id="show-training" label="顯示進修日" checked={showTraining} onChange={c => updateSetting('showTraining', c)} />
-                      <ToggleSwitch id="show-booked" label="顯示已預約時段" checked={showBooked} onChange={c => updateSetting('showBooked', c)} />
+                      <ToggleSwitch id="show-booked" label="顯示已預約時段" checked={showBooked} onChange={handleShowBookedChange} />
+                      <ToggleSwitch id="show-fully-booked" label="顯示已額滿日" checked={showFullyBooked} onChange={c => updateSetting('showFullyBooked', c)} disabled={!showBooked} />
                     </div>
                     
                     {showBooked && (
