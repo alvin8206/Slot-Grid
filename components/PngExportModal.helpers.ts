@@ -64,6 +64,7 @@ export const PRESET_COLORS = {
     text: ['#000000', '#d2d4d9', '#FFFFFF', '#a1d6d5', '#a9d6a1'],
     border: ['transparent', '#000000', '#FFFFFF', '#806fbf', '#6fbf9a'],
     block: ['transparent', '#000000', '#FFFFFF', '#b1d9e0', '#b8f2d7'],
+    slotBg: ['transparent', '#E0F2FE', '#E0F7FA', '#F0FDF4', '#FEFCE8', '#FFF7ED', '#F3E8FF'],
     strikethrough: ['#000000', '#d2d4d9', '#FFFFFF', '#dbc602', '#c2002d'],
     status: [
         '#c2002d', // Red

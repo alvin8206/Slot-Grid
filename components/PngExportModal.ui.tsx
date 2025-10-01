@@ -159,7 +159,7 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ pngSettings, upd
                 </div>
             </Accordion>
             
-            <Accordion title="顏色設定" defaultOpen={false}>
+            <Accordion title="顏色設定" defaultOpen={true}>
                 <div className="space-y-3">
                     <div>
                         <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 block">風格</label>
@@ -180,6 +180,7 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ pngSettings, upd
                     <div className="space-y-2">
                         <ColorPickerControl label="背景色" value={pngSettings.bgColor} onChange={v => updateSetting('bgColor', v)} presetColors={PRESET_COLORS.bg} />
                         <ColorPickerControl label="文字顏色" value={pngSettings.textColor} onChange={v => updateSetting('textColor', v)} presetColors={PRESET_COLORS.text} />
+                        <ColorPickerControl label="時段網底" value={pngSettings.availableSlotColor} onChange={v => updateSetting('availableSlotColor', v)} presetColors={PRESET_COLORS.slotBg} />
                         { (pngSettings.pngStyle === 'wireframe' || pngSettings.pngStyle === 'custom') && 
                           <ColorPickerControl label="邊框顏色" value={pngSettings.borderColor} onChange={v => updateSetting('borderColor', v)} presetColors={PRESET_COLORS.border} /> }
                         { (pngSettings.pngStyle === 'borderless' || pngSettings.pngStyle === 'custom') && 

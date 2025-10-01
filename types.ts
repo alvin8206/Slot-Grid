@@ -56,6 +56,7 @@ export interface PngSettingsState {
     textColor: string;
     borderColor: string;
     blockColor: string;
+    availableSlotColor: string; // NEW: Add color for available slots
     showShadow: boolean;
     showTitle: boolean;
     titleAlign: PngTitleAlign;

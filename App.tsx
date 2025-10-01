@@ -37,6 +37,7 @@ const defaultPngSettings: PngSettingsState = {
     textColor: '#111827',
     borderColor: 'transparent',
     blockColor: 'transparent',
+    availableSlotColor: 'transparent', // NEW: Add default value for available slots
     showShadow: false,
     showTitle: false,
     showBookedSlots: false,

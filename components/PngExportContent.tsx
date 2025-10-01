@@ -14,7 +14,7 @@ export interface PngExportContentProps extends PngSettingsState {
 }
 
 const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>(({
-    scheduleData, title, currentDate, calendarDays, weekStartsOn, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, showShadow, pngDisplayMode, pngDateRange, titleAlign, dayOffColor, closedColor, fullyBookedColor, trainingColor, pngListDateFilter, padding
+    scheduleData, title, currentDate, calendarDays, weekStartsOn, pngStyle, bgColor, textColor, borderColor, blockColor, showTitle, showBookedSlots, bookedStyle, strikethroughColor, strikethroughThickness, fontScale, font, language, showShadow, pngDisplayMode, pngDateRange, titleAlign, dayOffColor, closedColor, fullyBookedColor, trainingColor, pngListDateFilter, padding, availableSlotColor
 }, ref) => {
     
     const BASE_FONT_SIZE = 14;
@@ -238,16 +238,20 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                                 <span className="font-bold" style={{ color: getStatusColor(effectiveStatus) }}>{getStatusText(effectiveStatus, language)}</span>
                                             ) : (
                                                 (dayData?.slots && (showBookedSlots ? dayData.slots : dayData.slots.filter(s => s.state === 'available')) || []).map(slot => {
-                                                    const liStyle: React.CSSProperties = { color: textColor };
+                                                    const slotStyle: React.CSSProperties = { color: textColor };
                                                     if (slot.state === 'booked') {
-                                                        if (bookedStyle === 'fade') { liStyle.opacity = 0.3; } 
+                                                        if (bookedStyle === 'fade') { slotStyle.opacity = 0.3; } 
                                                         else if (bookedStyle === 'strikethrough') {
-                                                            liStyle.textDecoration = 'line-through';
-                                                            liStyle.textDecorationColor = strikethroughColor;
-                                                            liStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
+                                                            slotStyle.textDecoration = 'line-through';
+                                                            slotStyle.textDecorationColor = strikethroughColor;
+                                                            slotStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
                                                         }
+                                                    } else {
+                                                        slotStyle.backgroundColor = availableSlotColor;
+                                                        slotStyle.padding = '2px 6px';
+                                                        slotStyle.borderRadius = '4px';
                                                     }
-                                                    return <span key={slot.time} style={liStyle}>{slot.time}</span>;
+                                                    return <span key={slot.time} style={slotStyle}>{slot.time}</span>;
                                                 })
                                             )}
                                         </div>
@@ -308,6 +312,10 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                                                     liStyle.textDecorationColor = strikethroughColor;
                                                                     liStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
                                                                 }
+                                                            } else {
+                                                                liStyle.backgroundColor = availableSlotColor;
+                                                                liStyle.padding = '2px 6px';
+                                                                liStyle.borderRadius = '4px';
                                                             }
                                                             return (
                                                                 <li key={slot.time} style={liStyle}>
