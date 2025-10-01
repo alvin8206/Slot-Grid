@@ -37,7 +37,6 @@ const defaultPngSettings: PngSettingsState = {
     textColor: '#111827',
     borderColor: 'transparent',
     blockColor: 'transparent',
-    availableSlotColor: 'transparent', // NEW: Add default value for available slots
     showShadow: false,
     showTitle: false,
     showBookedSlots: false,
@@ -52,6 +51,7 @@ const defaultPngSettings: PngSettingsState = {
     closedColor: '#6B7280',
     fullyBookedColor: '#EF4444',
     trainingColor: '#3B82F6',
+    availableSlotColor: 'transparent',
     pngListDateFilter: 'all',
     // NEW: Set distinct default padding for each display mode
     padding: {

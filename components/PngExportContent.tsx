@@ -238,20 +238,20 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                                 <span className="font-bold" style={{ color: getStatusColor(effectiveStatus) }}>{getStatusText(effectiveStatus, language)}</span>
                                             ) : (
                                                 (dayData?.slots && (showBookedSlots ? dayData.slots : dayData.slots.filter(s => s.state === 'available')) || []).map(slot => {
-                                                    const slotStyle: React.CSSProperties = { color: textColor };
+                                                    const liStyle: React.CSSProperties = { color: textColor };
                                                     if (slot.state === 'booked') {
-                                                        if (bookedStyle === 'fade') { slotStyle.opacity = 0.3; } 
+                                                        if (bookedStyle === 'fade') { liStyle.opacity = 0.3; } 
                                                         else if (bookedStyle === 'strikethrough') {
-                                                            slotStyle.textDecoration = 'line-through';
-                                                            slotStyle.textDecorationColor = strikethroughColor;
-                                                            slotStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
+                                                            liStyle.textDecoration = 'line-through';
+                                                            liStyle.textDecorationColor = strikethroughColor;
+                                                            liStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
                                                         }
-                                                    } else {
-                                                        slotStyle.backgroundColor = availableSlotColor;
-                                                        slotStyle.padding = '2px 6px';
-                                                        slotStyle.borderRadius = '4px';
+                                                    } else if (availableSlotColor && availableSlotColor !== 'transparent') {
+                                                        liStyle.backgroundColor = availableSlotColor;
+                                                        liStyle.padding = '2px 6px';
+                                                        liStyle.borderRadius = '4px';
                                                     }
-                                                    return <span key={slot.time} style={slotStyle}>{slot.time}</span>;
+                                                    return <span key={slot.time} style={liStyle}>{slot.time}</span>;
                                                 })
                                             )}
                                         </div>
@@ -312,10 +312,11 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                                                     liStyle.textDecorationColor = strikethroughColor;
                                                                     liStyle.textDecorationThickness = strikethroughThickness === 'thick' ? '2.5px' : '1.5px';
                                                                 }
-                                                            } else {
+                                                            } else if (availableSlotColor && availableSlotColor !== 'transparent') {
                                                                 liStyle.backgroundColor = availableSlotColor;
                                                                 liStyle.padding = '2px 6px';
                                                                 liStyle.borderRadius = '4px';
+                                                                liStyle.display = 'inline-block';
                                                             }
                                                             return (
                                                                 <li key={slot.time} style={liStyle}>

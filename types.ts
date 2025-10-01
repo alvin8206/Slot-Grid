@@ -56,7 +56,6 @@ export interface PngSettingsState {
     textColor: string;
     borderColor: string;
     blockColor: string;
-    availableSlotColor: string; // NEW: Add color for available slots
     showShadow: boolean;
     showTitle: boolean;
     titleAlign: PngTitleAlign;
@@ -71,6 +70,7 @@ export interface PngSettingsState {
     closedColor: string;
     fullyBookedColor: string;
     trainingColor: string;
+    availableSlotColor: string;
     // NEW: Add separate padding controls for calendar and list views
     padding: {
         calendar: Padding;

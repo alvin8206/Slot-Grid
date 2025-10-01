@@ -180,11 +180,13 @@ export const SettingsPanels: React.FC<SettingsPanelsProps> = ({ pngSettings, upd
                     <div className="space-y-2">
                         <ColorPickerControl label="背景色" value={pngSettings.bgColor} onChange={v => updateSetting('bgColor', v)} presetColors={PRESET_COLORS.bg} />
                         <ColorPickerControl label="文字顏色" value={pngSettings.textColor} onChange={v => updateSetting('textColor', v)} presetColors={PRESET_COLORS.text} />
-                        <ColorPickerControl label="時段網底" value={pngSettings.availableSlotColor} onChange={v => updateSetting('availableSlotColor', v)} presetColors={PRESET_COLORS.slotBg} />
                         { (pngSettings.pngStyle === 'wireframe' || pngSettings.pngStyle === 'custom') && 
                           <ColorPickerControl label="邊框顏色" value={pngSettings.borderColor} onChange={v => updateSetting('borderColor', v)} presetColors={PRESET_COLORS.border} /> }
                         { (pngSettings.pngStyle === 'borderless' || pngSettings.pngStyle === 'custom') && 
                           <ColorPickerControl label="區塊顏色" value={pngSettings.blockColor} onChange={v => updateSetting('blockColor', v)} presetColors={PRESET_COLORS.block} /> }
+                        
+                        <ColorPickerControl label="可預約時段底色" value={pngSettings.availableSlotColor} onChange={v => updateSetting('availableSlotColor', v)} presetColors={PRESET_COLORS.slotBg} />
+
                         { pngSettings.showBookedSlots && pngSettings.bookedStyle === 'strikethrough' &&
                           <ColorPickerControl label="刪除線顏色" value={pngSettings.strikethroughColor} onChange={v => updateSetting('strikethroughColor', v)} presetColors={PRESET_COLORS.strikethrough} /> }
                         
