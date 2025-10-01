@@ -107,32 +107,47 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const filteredCalendarDays = useMemo(() => {
-      if (pngDateRange === 'remainingWeeks') {
-        const todayIndex = calendarDays.findIndex(d => d.date.getTime() === today.getTime());
-        if (todayIndex === -1) { // Today is not in this month view, show full month
-             const currentMonthStartDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-             if (today < currentMonthStartDate) { // Future month
-                return calendarDays;
-             }
-             return []; // Past month
+    // FIX: Instead of slicing the array, calculate the start date of the visible range.
+    // This allows us to hide days before this date while preserving the calendar grid structure.
+    const startOfVisibleRangeDate = useMemo(() => {
+        if (pngDisplayMode !== 'calendar' || pngDateRange !== 'remainingWeeks') {
+            return null; // No filtering needed for full month view or list view in this logic block.
         }
-        
+
+        const todayIndex = calendarDays.findIndex(d => d.date.getTime() === today.getTime());
+        if (todayIndex === -1) {
+            const currentMonthStartDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+            // If viewing a future month, show everything.
+            if (today < currentMonthStartDate) {
+                return null;
+            }
+            // If viewing a past month, show nothing by setting a future date.
+            const farFutureDate = new Date();
+            farFutureDate.setFullYear(farFutureDate.getFullYear() + 10);
+            return farFutureDate;
+        }
+
         let dayOfWeekForToday = today.getDay(); // 0=Sun, 1=Mon...
         if (weekStartsOn === 'monday') {
             dayOfWeekForToday = (dayOfWeekForToday === 0) ? 6 : dayOfWeekForToday - 1;
         }
 
         const startOfWeekIndex = todayIndex - dayOfWeekForToday;
+        if (startOfWeekIndex < 0 || startOfWeekIndex >= calendarDays.length) {
+             return null;
+        }
+        
+        const startOfWeekDate = new Date(calendarDays[startOfWeekIndex].date);
+        startOfWeekDate.setHours(0, 0, 0, 0);
+        return startOfWeekDate;
 
-        return calendarDays.slice(startOfWeekIndex >= 0 ? startOfWeekIndex : 0);
-      }
-      return calendarDays;
-    }, [calendarDays, pngDateRange, today, currentDate, weekStartsOn]);
+    }, [calendarDays, pngDateRange, pngDisplayMode, today, currentDate, weekStartsOn]);
 
+    // Use the original full calendarDays array and split it into weeks.
+    // The filtering will happen during render time.
     const weeks = [];
-    for (let i = 0; i < filteredCalendarDays.length; i += 7) {
-        weeks.push(filteredCalendarDays.slice(i, i + 7));
+    for (let i = 0; i < calendarDays.length; i += 7) {
+        weeks.push(calendarDays.slice(i, i + 7));
     }
     
     const listData = useMemo(() => {
@@ -201,6 +216,10 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                 const effectiveStatus = getEffectiveStatus(dayData);
 
                                 if (effectiveStatus === 'empty') return null;
+
+                                if (effectiveStatus === 'fullyBooked' && !showBookedSlots) {
+                                    return null;
+                                }
                                 
                                 if (effectiveStatus === 'available') {
                                     const slots = dayData?.slots || [];
@@ -255,18 +274,24 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                 const dateKey = formatDateKey(new Date(day.date));
                                 const dayData = scheduleData[dateKey];
                                 const effectiveStatus = getEffectiveStatus(dayData);
+                                
+                                const isFullyBookedAndHidden = effectiveStatus === 'fullyBooked' && !showBookedSlots;
+
+                                // FIX: This is the core logic fix. A day is only visible if it's in the current
+                                // month AND it's not before the calculated start of the visible range.
+                                const isVisibleDay = day.isCurrentMonth && (!startOfVisibleRangeDate || day.date >= startOfVisibleRangeDate);
 
                                 return (
-                                    <div key={`${weekIndex}-${dayIndex}`} style={getBlockStyles(day.isCurrentMonth, isPlaceholderRow)}>
-                                        <p className="font-bold" style={{ color: day.isCurrentMonth ? textColor : 'transparent' }}>
+                                    <div key={`${weekIndex}-${dayIndex}`} style={getBlockStyles(isVisibleDay, isPlaceholderRow)}>
+                                        <p className="font-bold" style={{ color: isVisibleDay ? textColor : 'transparent' }}>
                                             {day.date.getDate()}
                                         </p>
-                                        {day.isCurrentMonth && effectiveStatus !== 'available' && effectiveStatus !== 'empty' && (
+                                        {isVisibleDay && effectiveStatus !== 'available' && effectiveStatus !== 'empty' && !isFullyBookedAndHidden && (
                                             <div className="flex-grow flex items-center justify-center">
                                                 <span className="font-bold" style={{ color: getStatusColor(effectiveStatus), textAlign: 'center' }}>{getStatusText(effectiveStatus, language)}</span>
                                             </div>
                                         )}
-                                        {day.isCurrentMonth && effectiveStatus === 'available' && dayData?.slots && dayData.slots.length > 0 && (
+                                        {isVisibleDay && effectiveStatus === 'available' && dayData?.slots && dayData.slots.length > 0 && (
                                             (() => {
                                                 const finalSlots = showBookedSlots ? dayData.slots : dayData.slots.filter(s => s.state === 'available');
                                                 if (finalSlots.length === 0) return null;
