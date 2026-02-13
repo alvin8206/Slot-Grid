@@ -208,8 +208,8 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
             
             <div style={contentStyle}>
                 {pngDisplayMode === 'list' ? (
-                    // FIX: Add a minimum height and a placeholder message for when listData is empty. This prevents the preview area from collapsing and covering the toggle icons.
-                    <div className="space-y-4" style={{ minHeight: listData.length === 0 ? '200px' : 'auto' }}>
+                    // FIX: Ensure a minimum height for the list view to prevent export issues with transparent backgrounds when content is sparse.
+                    <div className="space-y-4 flex flex-col" style={{ minHeight: '200px' }}>
                         {listData.length > 0 ? (
                             listData.map(({dateKey, date}) => {
                                 const dayData = scheduleData[dateKey];
@@ -259,7 +259,7 @@ const PngExportContent = React.forwardRef<HTMLDivElement, PngExportContentProps>
                                 );
                             })
                         ) : (
-                            <div className="flex items-center justify-center h-full text-center" style={{ color: textColor, opacity: 0.6 }}>
+                            <div className="flex-grow flex items-center justify-center text-center" style={{ color: textColor, opacity: 0.6 }}>
                                 <p>{language === 'zh' ? '在此範圍內沒有可顯示的時段。' : 'No available slots in this range.'}</p>
                             </div>
                         )}

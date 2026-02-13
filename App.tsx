@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import type { ScheduleData, CalendarDay, Slot, DayData, PngSettingsState, TextExportSettingsState } from './types';
 import { MONTH_NAMES, DAY_NAMES, DAY_NAMES_EN } from './constants';
@@ -12,6 +13,7 @@ import TextExportModal from './components/TextExportModal';
 import PngExportModal from './components/PngExportModal';
 import { FONT_OPTIONS } from './components/PngExportModal.helpers';
 import { formatDateKey, getEffectiveStatus, DAY_STATUS_TEXT_MAP } from './utils';
+import MigrationNotice from './components/MigrationNotice';
 
 // A simple interface for the user object from Firebase Auth
 interface User {
@@ -29,7 +31,6 @@ interface AppSettings {
 }
 
 const defaultPngSettings: PngSettingsState = {
-    // REFACTORED: Changed from exportViewMode to the new structure
     pngDisplayMode: 'calendar',
     pngDateRange: 'full',
     pngStyle: 'minimal',
@@ -53,7 +54,6 @@ const defaultPngSettings: PngSettingsState = {
     trainingColor: '#3B82F6',
     availableSlotColor: 'transparent',
     pngListDateFilter: 'all',
-    // NEW: Set distinct default padding for each display mode
     padding: {
         calendar: {
             top: '60px',
@@ -86,8 +86,10 @@ const defaultTextExportSettings: TextExportSettingsState = {
     dateFilter: 'all',
 };
 
-
 const App: React.FC = () => {
+    // --- 遷移通知設定 ---
+    const NEW_DOMAIN_URL = "https://slotcanvas.manix.tw/"; 
+
     const [currentDate, setCurrentDate] = useState(new Date());
     const [scheduleData, setScheduleData] = useState<ScheduleData>({});
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -108,9 +110,7 @@ const App: React.FC = () => {
     const [textExportSettings, setTextExportSettings] = useState<TextExportSettingsState>(defaultTextExportSettings);
     const [appSettings, setAppSettings] = useState<AppSettings>({ weekStartsOn: 'sunday' });
     
-    // NEW: Auth status state to prevent race conditions
     const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
-
 
     useLayoutEffect(() => {
         const node = footerRef.current;
@@ -143,18 +143,11 @@ const App: React.FC = () => {
         return db.collection('users').doc(user.uid).collection('schedules').doc('default');
     }, [user]);
 
-    // MODIFIED: Handle auth state changes and set the definitive authStatus
     useEffect(() => {
         if (!isFirebaseConfigured) {
             setAuthStatus('anonymous');
             return;
         }
-
-        // REMOVED: The auth.getRedirectResult() block was removed.
-        // It was causing the "operation-not-supported-in-this-environment" error
-        // because the redirect flow is incompatible with the sandboxed environment.
-        // The onAuthStateChanged listener below is sufficient for handling all auth states,
-        // including successful pop-up logins.
         
         const unsubscribe = auth.onAuthStateChanged((user: User | null) => {
             setUser(user);
@@ -164,11 +157,10 @@ const App: React.FC = () => {
         return () => unsubscribe();
     }, []);
 
-    // MODIFIED: Data loading is now driven by authStatus, not docRef
     useEffect(() => {
         const loadData = async () => {
             if (authStatus === 'loading') {
-                return; // Do nothing until auth state is resolved
+                return;
             }
 
             if (authStatus === 'authenticated' && user) {
@@ -180,16 +172,33 @@ const App: React.FC = () => {
                         if (data) {
                             setScheduleData(data.schedule || {});
                             setTitle(data.title || "可預約時段");
-                            // FIX: Merge Firestore data with defaults to ensure data structure consistency.
+                            
                             setTextExportSettings(prev => ({ ...defaultTextExportSettings, ...(data.textExportSettings || {}) }));
-                            setPngSettings(prev => ({ ...defaultPngSettings, ...(data.pngSettings || {}) }));
+                            
+                            const loadedPngSettings = data.pngSettings || {};
+                            const loadedPadding = loadedPngSettings.padding;
+                            
+                            // Safe deep-merge logic to prevent crash from old flat data structure
+                            const calendarPadding = (loadedPadding?.calendar && typeof loadedPadding.calendar === 'object')
+                                ? { ...defaultPngSettings.padding.calendar, ...loadedPadding.calendar }
+                                : defaultPngSettings.padding.calendar;
+                            const listPadding = (loadedPadding?.list && typeof loadedPadding.list === 'object')
+                                ? { ...defaultPngSettings.padding.list, ...loadedPadding.list }
+                                : defaultPngSettings.padding.list;
+                            
+                            setPngSettings({
+                                ...defaultPngSettings,
+                                ...loadedPngSettings,
+                                padding: { calendar: calendarPadding, list: listPadding },
+                            });
+                            
                             setAppSettings(prev => ({ ...prev, ...(data.appSettings || {}) }));
                         }
                     }
                 } catch (error) {
                     console.error("Error loading data from Firestore:", error);
                 }
-            } else { // 'anonymous'
+            } else {
                 try {
                     const localSchedule = localStorage.getItem('scheduleData');
                     if (localSchedule) setScheduleData(JSON.parse(localSchedule));
@@ -197,8 +206,6 @@ const App: React.FC = () => {
                     const localTitle = localStorage.getItem('scheduleTitle');
                     if (localTitle) setTitle(localTitle);
                     
-                    // FIX: Merged localStorage settings with defaults to prevent crashes from old data structures.
-                    // This is the primary fix for the blank PNG modal issue for anonymous users.
                     const localTextSettings = localStorage.getItem('textExportSettings');
                     if (localTextSettings) {
                         const parsed = JSON.parse(localTextSettings);
@@ -208,7 +215,22 @@ const App: React.FC = () => {
                     const localPngSettings = localStorage.getItem('pngSettings');
                     if (localPngSettings) {
                         const parsed = JSON.parse(localPngSettings);
-                        setPngSettings(prev => ({ ...defaultPngSettings, ...parsed }));
+                        
+                        const loadedPadding = parsed.padding;
+                        const calendarPadding = (loadedPadding?.calendar && typeof loadedPadding.calendar === 'object')
+                            ? { ...defaultPngSettings.padding.calendar, ...loadedPadding.calendar }
+                            : defaultPngSettings.padding.calendar;
+                        const listPadding = (loadedPadding?.list && typeof loadedPadding.list === 'object')
+                            ? { ...defaultPngSettings.padding.list, ...loadedPadding.list }
+                            : defaultPngSettings.padding.list;
+
+                        setPngSettings({
+                            ...defaultPngSettings,
+                            ...parsed,
+                            padding: { calendar: calendarPadding, list: listPadding },
+                        });
+                    } else {
+                        setPngSettings(defaultPngSettings);
                     }
 
                     const localAppSettings = localStorage.getItem('appSettings');
@@ -248,7 +270,6 @@ const App: React.FC = () => {
         if ('pngSettings' in cleanUpdates) newState.pngSettings = cleanUpdates.pngSettings;
         if ('appSettings' in cleanUpdates) newState.appSettings = cleanUpdates.appSettings;
 
-        // Eagerly update local state for responsiveness
         setScheduleData(prev => newState.scheduleData ?? prev);
         setTitle(prev => newState.title ?? prev);
         setTextExportSettings(prev => newState.textExportSettings ?? prev);
@@ -263,7 +284,7 @@ const App: React.FC = () => {
             if ('pngSettings' in cleanUpdates) firestoreUpdates.pngSettings = cleanUpdates.pngSettings;
             if ('appSettings' in cleanUpdates) firestoreUpdates.appSettings = cleanUpdates.appSettings;
 
-            docRef.set(firestoreUpdates, { merge: true }) // Use set with merge to be safer
+            docRef.set(firestoreUpdates, { merge: true })
                 .catch((error: any) => console.error("Error saving data to Firestore:", error));
         } else {
             if ('scheduleData' in cleanUpdates) localStorage.setItem('scheduleData', JSON.stringify(cleanUpdates.scheduleData!));
@@ -298,7 +319,6 @@ const App: React.FC = () => {
         return () => clearTimeout(handler);
     }, [appSettings, updateAndSaveState, authStatus]);
 
-
     const calendarDays = useMemo<CalendarDay[]>(() => {
         const days: CalendarDay[] = [];
         const year = currentDate.getFullYear();
@@ -306,9 +326,8 @@ const App: React.FC = () => {
         const firstDayOfMonth = new Date(year, month, 1);
         const lastDayOfMonth = new Date(year, month + 1, 0);
 
-        let firstDayOfWeek = firstDayOfMonth.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+        let firstDayOfWeek = firstDayOfMonth.getDay();
         if (appSettings.weekStartsOn === 'monday') {
-            // Adjust so Monday is 0, Sunday is 6
             firstDayOfWeek = (firstDayOfWeek === 0) ? 6 : firstDayOfWeek - 1;
         }
         
@@ -401,7 +420,6 @@ const App: React.FC = () => {
         updateAndSaveState({ title: newTitle });
     };
 
-    // --- DELETE MODE LOGIC ---
     const handleToggleDeleteMode = () => {
         if (isDeleteMode) {
             setIsDeleteMode(false);
@@ -473,6 +491,9 @@ const App: React.FC = () => {
 
     return (
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
+            {/* 搬家公告 */}
+            <MigrationNotice newUrl={NEW_DOMAIN_URL} />
+
             <header 
                 className="fixed top-0 left-0 right-0 z-40 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700"
                 style={{ paddingTop: 'env(safe-area-inset-top)' }}
