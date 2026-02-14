@@ -28,26 +28,12 @@ const MigrationNotice: React.FC<MigrationNoticeProps> = ({ newUrl }) => {
         
         <a 
           href={newUrl}
-          className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg hover:shadow-blue-500/30 transform hover:-translate-y-1 active:scale-95 mb-6"
+          className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg hover:shadow-blue-500/30 transform hover:-translate-y-1 active:scale-95 mb-4"
         >
           立即前往新版 🚀
         </a>
-
-        <div className="pt-6 border-t border-gray-100 dark:border-gray-700">
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            如果有任何問題，請聯繫作者
-          </p>
-          <a 
-            href="https://www.instagram.com/alvinonx/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 font-semibold hover:underline"
-          >
-            Instagram: @alvinonx
-          </a>
-        </div>
         
-        <p className="mt-8 text-[10px] text-gray-400 dark:text-gray-500">
+        <p className="mt-4 text-[10px] text-gray-400 dark:text-gray-500">
           建議將新網域加入書籤，方便下次使用
         </p>
       </div>
