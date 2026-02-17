@@ -88,7 +88,7 @@ const defaultTextExportSettings: TextExportSettingsState = {
 
 const App: React.FC = () => {
     // --- 遷移通知設定 ---
-    const NEW_DOMAIN_URL = "https://slotcanvas.womantech.ai/"; 
+    const NEW_DOMAIN_URL = "https://app.slotcanvas.com/"; 
 
     const [currentDate, setCurrentDate] = useState(new Date());
     const [scheduleData, setScheduleData] = useState<ScheduleData>({});
@@ -472,7 +472,7 @@ const App: React.FC = () => {
         
         updateAndSaveState({ scheduleData: newSchedule });
 
-        setIsDeleteMode(false);
+        setIsDeleteMode(false)
         setDatesToDelete(new Set());
     };
     

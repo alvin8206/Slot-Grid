@@ -40,7 +40,7 @@ const MigrationNotice: React.FC<MigrationNoticeProps> = ({ newUrl }) => {
             <span>⚠️</span> 重要提醒
           </p>
           <p className="text-xs text-amber-700 dark:text-amber-300 leading-normal">
-            新版本採用全新的資料庫架構，您在舊版的資料（預約時段與設定）<span className="font-bold underline">將不會自動同步</span>。前往新站後，請重新設定。
+            新版本採用全新的資料庫架構，您在舊版的資料（預約時段與設定）<span className="font-bold underline">將不會自動同步</span>。前往新站登入後，請依照您的需求重新設定，造成不便敬請見諒。
           </p>
         </div>
         
